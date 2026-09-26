@@ -17,7 +17,7 @@ export default async function Page({ params }: { params: { id: string } }) {
     supabase.rpc('has_siapkerja_secret', { p_application: app.id }),
     supabase.from('verification_logs').select('decision,note,created_at').eq('application_id', app.id).order('created_at', { ascending: false }).limit(5),
   ]);
-  const { data: sessions } = await supabase.rpc('available_sessions', { p_scheme_slug: scheme!.slug });
+  const { data: sessions } = await supabase.rpc('available_sessions', { p_scheme_slug: scheme!.slug, p_coordinator: app.coordinator_id });
   const [{ data: reqDocs }, { data: fields }] = await Promise.all([
     supabase.from('required_documents').select('*').eq('is_active', true).order('sort_order'),
     supabase.from('custom_fields').select('*').eq('is_active', true).order('sort_order'),
@@ -35,13 +35,14 @@ export default async function Page({ params }: { params: { id: string } }) {
   if (app.status === 'recommended' && app.recommended_scheme_id) {
     const { data } = await supabase.from('schemes').select('id,slug,name,price').eq('id', app.recommended_scheme_id).single();
     recommended = data;
-    const { data: rs } = await supabase.rpc('available_sessions', { p_scheme_slug: data!.slug });
+    const { data: rs } = await supabase.rpc('available_sessions', { p_scheme_slug: data!.slug, p_coordinator: app.coordinator_id });
     recSessions = rs || [];
   }
 
   return (
     <Wizard app={app} scheme={scheme} userId={user!.id} sessions={sessions || []} current={current}
       docs={docs || []} hasSecret={!!hasSecret} logs={logs || []} recommended={recommended} recSessions={recSessions}
+      clientKey={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY || ''} prod={process.env.MIDTRANS_IS_PRODUCTION === 'true'}
       reqDocs={(reqDocs || []).filter(applies)} fields={(fields || []).filter(applies)} />
   );
 }

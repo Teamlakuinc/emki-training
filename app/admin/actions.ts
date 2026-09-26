@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { requireStaff } from '@/lib/admin';
 import { decryptSecret } from '@/lib/crypto';
 import { headers } from 'next/headers';
+import { sendAppEmail } from '@/lib/email';
 
 type Res = { ok: boolean; error?: string; data?: any };
 const err = (m?: string) => ({ ok: false, error: (m || 'Terjadi kesalahan.').replace(/^.*?ERROR:\s*/, '') });
@@ -14,7 +15,10 @@ export async function decide(id: string, decision: string, note: string, recomme
     p_id: id, p_decision: decision, p_note: note || null, p_recommended_scheme: recommended || null,
   });
   revalidatePath(`/admin/pendaftar/${id}`); revalidatePath('/admin');
-  return error ? err(error.message) : { ok: true };
+  if (error) return err(error.message);
+  const key = { approve: 'email_siap_bayar', revision: 'email_revisi', recommend: 'email_rekomendasi', reject: 'email_ditolak' }[decision];
+  if (key) await sendAppEmail(id, key);
+  return { ok: true };
 }
 
 /* ---------- admin: pindah sesi, perpanjang, catatan, hasil ---------- */
@@ -77,6 +81,11 @@ export async function saveSchedule(f: FormData): Promise<Res> {
     if (error) return err(error.message);
     sid = data.id;
   }
+  // harga khusus per skema untuk jadwal ini (kosong = harga dasar skema)
+  const priceRows = Array.from(f.entries()).filter(([k, v]) => k.startsWith('price_') && String(v).replace(/\D/g, '') !== '')
+    .map(([k, v]) => ({ schedule_id: sid, scheme_id: k.slice(6), price: Number(String(v).replace(/\D/g, '')) }));
+  await supabase.from('exam_schedule_prices').delete().eq('schedule_id', sid);
+  if (priceRows.length) { const { error } = await supabase.from('exam_schedule_prices').insert(priceRows); if (error) return err(error.message); }
   await supabase.from('exam_schedule_schemes').delete().eq('schedule_id', sid);
   if (schemes.length) {
     const { error } = await supabase.from('exam_schedule_schemes').insert(schemes.map(s => ({ schedule_id: sid, scheme_id: s })));
@@ -196,4 +205,45 @@ export async function saveCustomField(f: FormData): Promise<Res> {
                           : await supabase.from('custom_fields').update(payload).eq('code', code);
   revalidatePath('/admin/formulir');
   return error ? err(error.message.includes('duplicate') ? 'Kode sudah dipakai.' : error.message) : { ok: true };
+}
+
+
+/* ---------- koordinator ---------- */
+export async function saveCoordinator(f: FormData): Promise<Res> {
+  const { supabase } = await requireStaff('admin');
+  const id = f.get('id') as string | null;
+  const code = String(f.get('code') || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+  const payload: any = { code, name: String(f.get('name') || '').trim(), phone: String(f.get('phone') || '').trim() || null,
+    notes: String(f.get('notes') || '').trim() || null, is_active: f.get('is_active') === 'on' };
+  if (code.length < 2 || !payload.name) return err('Kode (min. 2 huruf/angka) dan nama wajib diisi.');
+  let cid = id;
+  if (id) { const { error } = await supabase.from('coordinators').update(payload).eq('id', id); if (error) return err(error.message.includes('duplicate') ? 'Kode sudah dipakai.' : error.message); }
+  else { const { data, error } = await supabase.from('coordinators').insert(payload).select('id').single(); if (error) return err(error.message.includes('duplicate') ? 'Kode sudah dipakai.' : error.message); cid = data.id; }
+  // aturan markup: default (semua skema) + per skema
+  const rows: any[] = [];
+  const dv = String(f.get('m_default_value') || '').replace(',', '.');
+  if (dv !== '') rows.push({ coordinator_id: cid, scheme_id: null, markup_type: f.get('m_default_type') || 'amount', value: Number(dv) });
+  for (const [k, v] of Array.from(f.entries())) {
+    if (k.startsWith('m_value_') && String(v).trim() !== '') {
+      const sid = k.slice(8);
+      rows.push({ coordinator_id: cid, scheme_id: sid, markup_type: f.get('m_type_' + sid) || 'amount', value: Number(String(v).replace(',', '.')) });
+    }
+  }
+  if (rows.some(r => isNaN(r.value) || r.value < 0)) return err('Nilai markup tidak valid.');
+  await supabase.from('coordinator_markups').delete().eq('coordinator_id', cid);
+  if (rows.length) { const { error } = await supabase.from('coordinator_markups').insert(rows); if (error) return err(error.message); }
+  revalidatePath('/admin/koordinator');
+  return { ok: true, data: cid };
+}
+
+/* ---------- email jadwal massal ---------- */
+export async function emailSchedule(scheduleId: string): Promise<Res> {
+  const { supabase } = await requireStaff('admin');
+  const { data: sess } = await supabase.from('exam_sessions').select('id').eq('schedule_id', scheduleId);
+  const ids = (sess || []).map(s => s.id);
+  if (!ids.length) return err('Belum ada sesi.');
+  const { data: apps } = await supabase.from('applications').select('id').in('session_id', ids).eq('status', 'paid');
+  let sent = 0;
+  for (const a of apps || []) if (await sendAppEmail(a.id, 'email_jadwal')) sent++;
+  return { ok: true, data: `${sent} dari ${(apps || []).length} email terkirim.` };
 }

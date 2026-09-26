@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   if (!ids.length) return new NextResponse('Tidak ada peserta dipilih', { status: 400 });
 
   const { data: apps, error } = await supabase.from('applications')
-    .select('id,reg_code,full_name,nik,birth_place,birth_date,gender,address_ktp,city,province,phone,email,education,occupation,workplace,experience_years,extra_answers,status,paid_at,schemes!applications_scheme_id_fkey(name,export_label),exam_sessions(name,start_time,end_time,sort_order,exam_schedules(title,exam_date,tuk,asesor))')
+    .select('id,reg_code,full_name,nik,birth_place,birth_date,gender,address_ktp,city,province,phone,email,education,occupation,workplace,experience_years,extra_answers,status,paid_at,amount,coordinators(name,code),schemes!applications_scheme_id_fkey(name,export_label),exam_sessions(name,start_time,end_time,sort_order,exam_schedules(title,exam_date,tuk,asesor))')
     .in('id', ids);
   if (error) return new NextResponse(error.message, { status: 500 });
   const rows: any[] = (apps || []).sort((a: any, b: any) =>
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
   const ws = wb.addWorksheet('Data Peserta');
   const headers = ['NO', 'NAMA ASESI', 'NOMOR  INDUK KEPENDUDUKAN (NIK)', 'TEMPAT LAHIR', 'TANGGAL LAHIR (dd/mm/yyyy)', 'JENIS KELAMIN (L/P)',
     'ALAMAT SESUAI KTP', 'KOTA', 'PROVINSI', 'TELP', 'EMAIL', 'PENDIDIKAN ', 'PEKERJAAN', 'PT/INSTITUT', 'TUK', 'SKEMA', 'ASESOR', 'JADWAL UJI',
-    'SESI', 'NO REGISTRASI', 'PENGALAMAN (TAHUN)', 'STATUS', 'FOLDER DOKUMEN', ...extraCols.map((c: any) => c.label.toUpperCase())];
+    'SESI', 'NO REGISTRASI', 'PENGALAMAN (TAHUN)', 'STATUS', 'FOLDER DOKUMEN', 'HARGA DIBAYAR', 'KOORDINATOR', ...extraCols.map((c: any) => c.label.toUpperCase())];
   ws.addRow(headers);
   ws.getRow(1).font = { bold: true };
   ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE4EAF4' } };
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
       r.address_ktp, r.city, r.province, r.phone, r.email, r.education, r.occupation, r.workplace, j?.tuk || '',
       r.schemes?.export_label || (r.schemes?.name || '').toUpperCase(), j?.asesor || '', dmy(j?.exam_date),
       s ? `${s.name} (${s.start_time.slice(0, 5)}–${s.end_time.slice(0, 5)})` : '', r.reg_code || '', r.experience_years ?? '',
-      r.status === 'paid' ? 'LUNAS' : r.status, folders[i], ...extraCols.map((c: any) => r.extra_answers?.[c.code] ?? '')]);
+      r.status === 'paid' ? 'LUNAS' : r.status, folders[i], r.amount != null ? Number(r.amount) : '', r.coordinators ? `${r.coordinators.name} (${r.coordinators.code})` : '', ...extraCols.map((c: any) => r.extra_answers?.[c.code] ?? '')]);
   });
   ws.getColumn(3).numFmt = '@';
   rows.forEach((_: any, i: number) => { ws.getCell(i + 2, 3).value = String(rows[i].nik || ''); });

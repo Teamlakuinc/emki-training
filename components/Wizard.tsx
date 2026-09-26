@@ -5,10 +5,10 @@ import { createClient } from '@/lib/supabase/client';
 import { ACCEPT, PENDIDIKAN, PROVINSI, STATUS, jam, rupiah, tanggal, waktu, waLink } from '@/lib/format';
 import {
   saveSession, savePersonal, saveSiapkerja, recordDocument, getDocUrl, saveConsent,
-  submitApplication, acceptRecommendation, cancelApplication,
+  submitApplication, acceptRecommendation, cancelApplication, createPayment, checkPayment,
 } from '@/app/akun/actions';
 
-type Props = { app: any; scheme: any; userId: string; sessions: any[]; current: any; docs: any[]; hasSecret: boolean; logs: any[]; recommended: any; recSessions: any[]; reqDocs: any[]; fields: any[] };
+type Props = { app: any; scheme: any; userId: string; sessions: any[]; current: any; docs: any[]; hasSecret: boolean; logs: any[]; recommended: any; recSessions: any[]; reqDocs: any[]; fields: any[]; clientKey: string; prod: boolean };
 const STEPS = ['Jadwal & sesi', 'Data diri', 'Akun SIAPkerja', 'Dokumen', 'Tinjau & kirim'];
 const MAX = 10 * 1024 * 1024;
 
@@ -46,7 +46,7 @@ export default function Wizard(p: Props) {
         <div>
           <span className="eyebrow">Sertifikasi BNSP · {scheme.name}</span>
           <h1 style={{ marginBottom: 4 }}>Formulir pendaftaran</h1>
-          <div className="row small"><span className={`badge ${st.tone}`}>{st.label}</span>{app.reg_code && <span className="muted">No. registrasi {app.reg_code}</span>}<span className="muted">{rupiah(app.amount ?? scheme.price)}</span></div>
+          <div className="row small"><span className={`badge ${st.tone}`}>{st.label}</span>{app.reg_code && <span className="muted">No. registrasi {app.reg_code}</span>}<span className="muted">{app.amount != null ? rupiah(app.amount) : 'Harga sesuai jadwal yang dipilih'}</span></div>
         </div>
         <a className="btn btn-outline" href="/akun">← Akun saya</a>
       </div>
@@ -104,13 +104,14 @@ function StatusPanel(p: StepProps) {
       {app.status === 'recommended' && p.recommended && (
         <div className="card" style={{ background: '#FFFCF6', borderColor: '#E6D3A8' }}>
           <h2>Rekomendasi: {p.recommended.name}</h2>
-          <p>Biaya berubah dari <s>{rupiah(app.amount ?? scheme.price)}</s> menjadi <b>{rupiah(p.recommended.price)}</b>.</p>
+          {(() => { const np = (p.recSessions.find(x => x.session_id === (recHasCurrent ? app.session_id : recSession)) || {}).price;
+            return <p>Biaya berubah dari <s>{rupiah(app.amount)}</s> menjadi <b>{np != null ? rupiah(np) : '(pilih jadwal untuk melihat harga)'}</b>.</p>; })()}
           {!recHasCurrent && (
             <div className="field">
               <label htmlFor="rs">Jadwal Anda saat ini tidak tersedia untuk skema {p.recommended.name}. Pilih jadwal lain:</label>
               <select id="rs" value={recSession} onChange={e => setRecSession(e.target.value)}>
                 <option value="">— pilih tanggal & sesi —</option>
-                {p.recSessions.filter(s => s.seats_left > 0).map(s => <option key={s.session_id} value={s.session_id}>{tanggal(s.exam_date)} · {s.session_name} {jam(s.start_time)}–{jam(s.end_time)} · {s.tuk} (sisa {s.seats_left})</option>)}
+                {p.recSessions.filter(s => s.seats_left > 0).map(s => <option key={s.session_id} value={s.session_id}>{tanggal(s.exam_date)} · {s.session_name} {jam(s.start_time)}–{jam(s.end_time)} · {s.tuk} · {rupiah(s.price)} (sisa {s.seats_left})</option>)}
               </select>
             </div>
           )}
@@ -122,12 +123,7 @@ function StatusPanel(p: StepProps) {
         </div>
       )}
 
-      {app.status === 'awaiting_payment' && (
-        <div className="alert alert-info" style={{ marginBottom: 0 }}>
-          <b>Total: {rupiah(app.amount)}</b> · Batas pembayaran: <b>{waktu(app.payment_due_at)}</b><br />
-          Pembayaran online akan segera aktif di halaman ini. Sementara itu, tim kami akan menghubungi Anda melalui WhatsApp untuk instruksi pembayaran.
-        </div>
-      )}
+      {app.status === 'awaiting_payment' && <PayBox {...p} />}
 
       {['submitted', 'recommended', 'awaiting_payment'].includes(app.status) && (
         <p className="small" style={{ marginTop: 14, marginBottom: 0 }}>
@@ -135,6 +131,51 @@ function StatusPanel(p: StepProps) {
             onClick={() => { if (confirm('Batalkan pendaftaran ini? Kursi Ujikom Anda akan dilepas.')) p.run(() => cancelApplication(app.id), 'Pendaftaran dibatalkan.'); }}>Batalkan pendaftaran</button>
         </p>
       )}
+    </div>
+  );
+}
+
+/* ---------------- pembayaran (Midtrans Snap) ---------------- */
+function PayBox(p: StepProps) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [note, setNote] = useState('');
+  function loadSnap(): Promise<any> {
+    return new Promise((res, rej) => {
+      const w = window as any; if (w.snap) return res(w.snap);
+      const sc = document.createElement('script');
+      sc.src = p.prod ? 'https://app.midtrans.com/snap/snap.js' : 'https://app.sandbox.midtrans.com/snap/snap.js';
+      sc.setAttribute('data-client-key', p.clientKey); sc.onload = () => res(w.snap); sc.onerror = () => rej(new Error('Gagal memuat Midtrans'));
+      document.body.appendChild(sc);
+    });
+  }
+  async function pay() {
+    setErr(''); setNote(''); setBusy(true);
+    const r = await createPayment(p.app.id);
+    if (!r.ok || !r.token) { setBusy(false); setErr(r.error || 'Gagal membuka pembayaran.'); return; }
+    try {
+      const snap = await loadSnap();
+      snap.pay(r.token, {
+        onSuccess: async () => { setNote('Pembayaran berhasil. Memperbarui status…'); await checkPayment(p.app.id); router.refresh(); },
+        onPending: () => { setNote('Pembayaran menunggu penyelesaian. Selesaikan sesuai instruksi (mis. transfer ke nomor Virtual Account), status akan berubah otomatis.'); },
+        onError: () => setErr('Pembayaran gagal. Silakan coba lagi atau gunakan metode lain.'),
+        onClose: () => {},
+      });
+    } catch (e: any) { setErr(e.message); }
+    setBusy(false);
+  }
+  return (
+    <div className="card" style={{ borderColor: 'var(--green-2)', background: '#FBFEFC', marginBottom: 0 }}>
+      <div className="row between">
+        <div><div className="muted small">Total pembayaran</div><div className="price">{rupiah(p.app.amount)}</div>
+          <div className="small">Batas pembayaran: <b>{waktu(p.app.payment_due_at)}</b></div></div>
+        <button className="btn btn-green" onClick={pay} disabled={busy}>{busy ? 'Membuka…' : 'Bayar sekarang'}</button>
+      </div>
+      {err && <div className="alert alert-err" style={{ marginTop: 12, marginBottom: 0 }}>{err}</div>}
+      {note && <div className="alert alert-info" style={{ marginTop: 12, marginBottom: 0 }}>{note}</div>}
+      <p className="muted small" style={{ margin: '12px 0 0' }}>Bisa dibayar dengan Virtual Account bank, QRIS, e-wallet, dan metode lain yang tersedia. Sudah bayar tapi status belum berubah?{' '}
+        <button type="button" onClick={async () => { await checkPayment(p.app.id); router.refresh(); }} style={{ background: 'none', border: 0, color: 'var(--blue)', cursor: 'pointer', padding: 0, font: 'inherit', textDecoration: 'underline' }}>Cek status pembayaran</button></p>
     </div>
   );
 }
@@ -164,7 +205,7 @@ function StepSession(p: StepProps) {
               <label key={s.session_id} className={`sess ${sel === s.session_id ? 'sel' : ''} ${full ? 'full' : ''}`}>
                 <span><input type="radio" name="sess" disabled={full} checked={sel === s.session_id} onChange={() => setSel(s.session_id)} />
                   <b>{s.session_name}</b> · {jam(s.start_time)}–{jam(s.end_time)} WIB</span>
-                <span className={`badge ${full ? 'red' : s.seats_left <= 3 ? 'amber' : 'green'}`}>{full ? 'Penuh' : `Sisa ${s.seats_left} kursi`}</span>
+                <span className="row" style={{ gap: 8 }}><b className="small">{rupiah(s.price)}</b><span className={`badge ${full ? 'red' : s.seats_left <= 3 ? 'amber' : 'green'}`}>{full ? 'Penuh' : `Sisa ${s.seats_left} kursi`}</span></span>
               </label>
             );
           })}
@@ -327,6 +368,7 @@ function StepSubmit(p: StepProps & { done: boolean[]; goto: (i: number) => void 
   const [agree, setAgree] = useState(!!p.app.consent_at);
   const allDone = p.done.slice(0, 4).every(Boolean);
   const verify = p.scheme.requires_verification;
+  const selPrice = (p.sessions.find(x => x.session_id === p.app.session_id) || {}).price ?? p.app.amount;
   return (
     <>
       <h2>Tinjau & kirim</h2>
@@ -344,8 +386,8 @@ function StepSubmit(p: StepProps & { done: boolean[]; goto: (i: number) => void 
       </label>
       <div className="alert alert-info small">
         {verify
-          ? <>Setelah dikirim, dokumen Anda diperiksa tim verifikator EMKI. Jika disetujui, Anda mendapat email untuk melanjutkan pembayaran <b>{rupiah(p.scheme.price)}</b> dalam 3×24 jam.</>
-          : <>Setelah dikirim, Anda dapat langsung melakukan pembayaran <b>{rupiah(p.scheme.price)}</b> dalam 3×24 jam. Kursi Ujikom Anda ditahan selama masa tersebut.</>}
+          ? <>Setelah dikirim, dokumen Anda diperiksa tim verifikator EMKI. Jika disetujui, Anda mendapat email untuk melanjutkan pembayaran <b>{rupiah(selPrice)}</b> dalam 3×24 jam.</>
+          : <>Setelah dikirim, Anda dapat langsung melakukan pembayaran <b>{rupiah(selPrice)}</b> dalam 3×24 jam. Kursi Ujikom Anda ditahan selama masa tersebut.</>}
       </div>
       <button className="btn btn-primary btn-block" disabled={!allDone || !agree || p.pending}
         onClick={() => p.run(() => submitApplication(p.app.id), verify ? 'Pendaftaran terkirim dan sedang menunggu verifikasi.' : 'Pendaftaran terkirim. Silakan lanjutkan pembayaran.')}>

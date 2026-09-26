@@ -9,7 +9,7 @@ export default async function Page() {
   const { supabase, role } = await requireStaff();
   const [{ data: list }, { data: schemes }] = await Promise.all([
     supabase.from('exam_schedules').select('id,title,exam_date,tuk,status,exam_sessions(id,quota)').order('exam_date', { ascending: false }),
-    supabase.from('schemes').select('id,name').order('level_order'),
+    supabase.from('schemes').select('id,name,price').order('level_order'),
   ]);
   return (
     <>

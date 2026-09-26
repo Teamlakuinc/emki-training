@@ -15,6 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <Link href="/admin/pendaftar">Pendaftar</Link>
         <Link href="/admin/jadwal">Jadwal Ujikom</Link>
         {admin && <Link href="/admin/skema">Skema & Harga</Link>}
+        {admin && <Link href="/admin/koordinator">Koordinator</Link>}
         {admin && <Link href="/admin/formulir">Formulir</Link>}
         {admin && <Link href="/admin/template">Template Pesan</Link>}
         {role === 'super_admin' && <Link href="/admin/tim">Tim</Link>}

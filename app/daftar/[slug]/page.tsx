@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { rupiah, tanggal, jam } from '@/lib/format';
 import { startApplication } from '@/app/akun/actions';
+import { refCoordinatorId } from '@/lib/ref';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,10 @@ export default async function Page({ params }: { params: { slug: string } }) {
   const supabase = createClient();
   const { data: scheme } = await supabase.from('schemes').select('id,slug,name,price,requires_verification').eq('slug', params.slug).eq('is_active', true).maybeSingle();
   if (!scheme) notFound();
-  const { data: sessions } = await supabase.rpc('available_sessions', { p_scheme_slug: scheme.slug });
+  const coord = await refCoordinatorId();
+  const { data: sessions } = await supabase.rpc('available_sessions', { p_scheme_slug: scheme.slug, p_coordinator: coord });
+  const prices = (sessions || []).map((x: any) => Number(x.price));
+  const minP = prices.length ? Math.min(...prices) : null, maxP = prices.length ? Math.max(...prices) : null;
   const { data: { user } } = await supabase.auth.getUser();
   const dates = Array.from(new Map((sessions || []).map((s: any) => [s.schedule_id, s])).values()) as any[];
   const start = startApplication.bind(null, scheme.slug);
@@ -24,7 +28,8 @@ export default async function Page({ params }: { params: { slug: string } }) {
       <div>
         <span className="eyebrow">Sertifikasi Kompetensi BNSP</span>
         <h1>Pendaftaran {scheme.name}</h1>
-        <p className="price">{rupiah(scheme.price)}</p>
+        <p className="price">{minP == null ? 'Harga menyesuaikan jadwal' : minP === maxP ? rupiah(minP) : `Mulai ${rupiah(minP)}`}</p>
+        {minP != null && minP !== maxP && <p className="muted small">Harga berbeda per lokasi/jadwal Ujikom.</p>}
         <p>Lembaga sertifikasi: <b>LSP Rajawali</b></p>
         <ol className="small" style={{ paddingLeft: 18 }}>
           <li>Pilih tanggal & sesi Ujikom</li>
@@ -40,7 +45,7 @@ export default async function Page({ params }: { params: { slug: string } }) {
         {dates.length === 0 ? <p className="muted">Belum ada jadwal yang dibuka untuk skema ini. Anda tetap bisa membuat akun dan menyiapkan dokumen; kami akan mengabari saat jadwal dibuka.</p> : (
           <ul className="small" style={{ paddingLeft: 18 }}>
             {dates.map(d => <li key={d.schedule_id}><b>{tanggal(d.exam_date)}</b> — {d.tuk}
-              <div className="muted">{(sessions as any[]).filter(s => s.schedule_id === d.schedule_id).map(s => `${s.session_name} ${jam(s.start_time)}–${jam(s.end_time)} (sisa ${s.seats_left})`).join(' · ')}</div></li>)}
+              <div className="muted">{(sessions as any[]).filter(s => s.schedule_id === d.schedule_id).map(s => `${s.session_name} ${jam(s.start_time)}–${jam(s.end_time)} (sisa ${s.seats_left})`).join(' · ')}</div><div className="small"><b>{rupiah((sessions as any[]).find(s => s.schedule_id === d.schedule_id)?.price)}</b></div></li>)}
           </ul>)}
         {user ? (
           <form action={start}><button className="btn btn-primary btn-block">Mulai / Lanjutkan Pendaftaran</button></form>

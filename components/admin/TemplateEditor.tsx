@@ -10,7 +10,7 @@ function One({ t, isNew }: { t: any; isNew?: boolean }) {
   return (
     <form className="card" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); const form = e.currentTarget;
       start(async () => { const r = await saveTemplate(f); if (!r.ok) return setMsg({ t: 'err', m: r.error! }); setMsg({ t: 'ok', m: 'Tersimpan.' }); if (isNew) form.reset(); router.refresh(); }); }}>
-      {isNew && <h2>Tambah template baru</h2>}
+      {isNew ? <h2>Tambah template WhatsApp baru</h2> : <div className="row small" style={{ marginBottom: 8 }}><span className={`badge ${t.channel === 'email' ? 'blue' : 'green'}`}>{t.channel === 'email' ? 'Email otomatis' : 'WhatsApp'}</span></div>}
       {msg && <div className={`alert ${msg.t === 'ok' ? 'alert-ok' : 'alert-err'}`}>{msg.m}</div>}
       <div className="grid2">
         <div className="field"><label>Judul (tampil di tombol)</label><input name="title" defaultValue={t.title} required /></div>

@@ -25,7 +25,7 @@ export default async function Page({ searchParams }: { searchParams: { error?: s
           <div className="card app-item" key={a.id}>
             <div>
               <h2 style={{ marginBottom: 4 }}>{a.schemes?.name}</h2>
-              <div className="row small"><span className={`badge ${st.tone}`}>{st.label}</span>{a.reg_code && <span className="muted">{a.reg_code}</span>}<span className="muted">{rupiah(a.amount ?? a.schemes?.price)}</span></div>
+              <div className="row small"><span className={`badge ${st.tone}`}>{st.label}</span>{a.reg_code && <span className="muted">{a.reg_code}</span>}{a.amount != null && <span className="muted">{rupiah(a.amount)}</span>}</div>
               {a.status === 'awaiting_payment' && a.payment_due_at && <p className="small" style={{ margin: '6px 0 0' }}>Batas bayar: <b>{waktu(a.payment_due_at)}</b></p>}
             </div>
             <Link className="btn btn-outline" href={`/akun/pendaftaran/${a.id}`}>{['draft', 'revision_required'].includes(a.status) ? 'Lanjutkan' : 'Lihat detail'}</Link>

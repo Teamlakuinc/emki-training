@@ -106,6 +106,13 @@ export default function Detail(p: any) {
           </div>
 
           <div className="card">
+            <h2>Harga & referral</h2>
+            <dl className="kv" style={{ marginBottom: 16 }}>
+              <dt>Harga dasar</dt><dd>{a.base_amount != null ? rupiah(a.base_amount) : '-'}</dd>
+              <dt>Markup koordinator</dt><dd>{a.markup_amount ? rupiah(a.markup_amount) : '-'}</dd>
+              <dt>Ditagihkan</dt><dd><b>{a.amount != null ? rupiah(a.amount) : 'Belum dikunci (belum dikirim)'}</b></dd>
+              <dt>Koordinator</dt><dd>{a.coordinators ? `${a.coordinators.name} (${a.coordinators.code})` : '— daftar langsung —'}</dd>
+            </dl>
             <h2>Jadwal</h2>
             {j ? <dl className="kv"><dt>Tanggal</dt><dd>{tanggal(j.exam_date)}</dd><dt>Sesi</dt><dd>{s.name} ({jam(s.start_time)}–{jam(s.end_time)})</dd><dt>TUK</dt><dd>{j.tuk}</dd>
               {a.payment_due_at && <><dt>Batas bayar</dt><dd>{waktu(a.payment_due_at)}</dd></>}{a.paid_at && <><dt>Lunas</dt><dd>{waktu(a.paid_at)}</dd></>}</dl> : <p className="muted">Belum memilih jadwal.</p>}

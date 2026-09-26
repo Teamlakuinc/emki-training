@@ -5,14 +5,16 @@ import { APP_SELECT } from '@/lib/queries';
 import ScheduleForm from '@/components/admin/ScheduleForm';
 import SessionEditor from '@/components/admin/SessionEditor';
 import ApplicantTable from '@/components/admin/ApplicantTable';
+import EmailScheduleButton from '@/components/admin/EmailScheduleButton';
 
 export default async function Page({ params, searchParams }: { params: { id: string }; searchParams: { semua?: string } }) {
   const { supabase, role } = await requireStaff();
   const { data: j } = await supabase.from('exam_schedules').select('*').eq('id', params.id).maybeSingle();
   if (!j) notFound();
+  const { data: pr } = await supabase.from('exam_schedule_prices').select('scheme_id,price').eq('schedule_id', params.id);
   const [{ data: sessions }, { data: schemes }, { data: links }, { data: templates }] = await Promise.all([
     supabase.from('exam_sessions').select('*').eq('schedule_id', j.id).order('sort_order'),
-    supabase.from('schemes').select('id,name').order('level_order'),
+    supabase.from('schemes').select('id,name,price').order('level_order'),
     supabase.from('exam_schedule_schemes').select('scheme_id').eq('schedule_id', j.id),
     supabase.from('message_templates').select('key,title,body').eq('channel', 'whatsapp').eq('is_active', true).order('sort_order'),
   ]);
@@ -31,6 +33,7 @@ export default async function Page({ params, searchParams }: { params: { id: str
       <h1 style={{ marginTop: 6 }}>{j.title}</h1>
       <p className="muted">{tanggal(j.exam_date)} · {j.tuk}</p>
 
+      {admin && <EmailScheduleButton scheduleId={j.id} />}
       <h2 style={{ marginTop: 24 }}>Peserta {searchParams.semua ? '(semua yang sudah mengirim)' : '(lunas)'}</h2>
       <p className="small"><a href={searchParams.semua ? `/admin/jadwal/${j.id}` : `/admin/jadwal/${j.id}?semua=1`}>{searchParams.semua ? 'Tampilkan yang lunas saja' : 'Tampilkan semua yang sudah mengirim'}</a></p>
       {(sessions || []).map(s => <div key={s.id} style={{ marginBottom: 20 }}>
@@ -42,7 +45,7 @@ export default async function Page({ params, searchParams }: { params: { id: str
         <h2 style={{ marginTop: 28 }}>Sesi & kuota</h2>
         <SessionEditor scheduleId={j.id} sessions={sessions || []} counts={counts} />
         <div className="card" style={{ marginTop: 24 }}><h2>Pengaturan jadwal</h2>
-          <ScheduleForm j={j} schemes={schemes || []} selected={(links || []).map(l => l.scheme_id)} /></div>
+          <ScheduleForm j={j} schemes={schemes || []} selected={(links || []).map(l => l.scheme_id)} prices={Object.fromEntries((pr || []).map((x: any) => [x.scheme_id, Number(x.price)]))} /></div>
       </>}
     </>
   );

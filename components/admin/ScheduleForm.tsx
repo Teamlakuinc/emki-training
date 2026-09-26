@@ -3,7 +3,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveSchedule } from '@/app/admin/actions';
 
-export default function ScheduleForm({ j, schemes, selected }: { j?: any; schemes: any[]; selected: string[] }) {
+export default function ScheduleForm({ j, schemes, selected, prices = {} }: { j?: any; schemes: any[]; selected: string[]; prices?: Record<string, number> }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ t: string; m: string } | null>(null);
@@ -28,6 +28,11 @@ export default function ScheduleForm({ j, schemes, selected }: { j?: any; scheme
       <div className="field"><label htmlFor="ad">Alamat lengkap</label><input id="ad" name="address" defaultValue={j?.address || ''} /></div>
       <div className="field"><span className="lbl">Skema yang diuji di jadwal ini</span>
         <div className="chk-grid">{schemes.map(s => <label key={s.id}><input type="checkbox" name="schemes" value={s.id} defaultChecked={!j || selected.includes(s.id)} />{s.name}</label>)}</div></div>
+      <div className="field"><span className="lbl">Harga di jadwal ini <span className="opt">(kosongkan = harga dasar skema; isi jika lokasi ini berbeda harga, mis. ada biaya transport)</span></span>
+        <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Skema</th><th>Harga dasar</th><th>Harga khusus jadwal ini</th></tr></thead><tbody>
+          {schemes.map(s => <tr key={s.id}><td>{s.name}</td><td>Rp {Number(s.price).toLocaleString('id-ID')}</td>
+            <td><input name={`price_${s.id}`} inputMode="numeric" defaultValue={prices[s.id] ?? ''} placeholder="— sama dengan dasar —" style={{ font: 'inherit', fontSize: 14, padding: '6px 8px', border: '1.5px solid #D5D8DC', borderRadius: 8, width: 180 }} /></td></tr>)}
+        </tbody></table></div></div>
       <div className="grid2">
         <div className="field"><label htmlFor="st">Status</label><select id="st" name="status" defaultValue={j?.status || 'draft'}>
           <option value="draft">Draft (belum tampil ke peserta)</option><option value="open">Dibuka (peserta bisa memilih)</option>

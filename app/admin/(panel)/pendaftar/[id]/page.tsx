@@ -5,7 +5,7 @@ import Detail from '@/components/admin/Detail';
 export default async function Page({ params }: { params: { id: string } }) {
   const { supabase, role } = await requireStaff();
   const { data: a } = await supabase.from('applications')
-    .select('*, schemes!applications_scheme_id_fkey(id,name,price,requires_verification), rec:schemes!applications_recommended_scheme_id_fkey(name), orig:schemes!applications_original_scheme_id_fkey(name), exam_sessions(id,name,start_time,end_time,exam_schedules(id,title,exam_date,tuk,address))')
+    .select('*, coordinators(name,code), schemes!applications_scheme_id_fkey(id,name,price,requires_verification), rec:schemes!applications_recommended_scheme_id_fkey(name), orig:schemes!applications_original_scheme_id_fkey(name), exam_sessions(id,name,start_time,end_time,exam_schedules(id,title,exam_date,tuk,address))')
     .eq('id', params.id).maybeSingle();
   if (!a) notFound();
   const [{ data: docs }, { data: logs }, { data: schemes }, { data: templates }, { data: hasSecret }, { data: notifs }] = await Promise.all([

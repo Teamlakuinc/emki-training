@@ -4,6 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { encryptSecret } from '@/lib/crypto';
+import { createSnap, getStatus } from '@/lib/midtrans';
+import { applyMidtrans } from '@/lib/payments';
+import { sendAppEmail } from '@/lib/email';
+import { refCoordinatorId } from '@/lib/ref';
 
 type Res = { ok: boolean; error?: string };
 const clean = (v: unknown) => (typeof v === 'string' ? v.trim() : v) || null;
@@ -25,8 +29,9 @@ export async function startApplication(slug: string) {
     .in('status', ['draft', 'submitted', 'revision_required', 'recommended', 'awaiting_payment']).maybeSingle();
   if (existing) redirect(`/akun/pendaftaran/${existing.id}`);
   const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
+  const coordinator_id = await refCoordinatorId();
   const { data: created, error } = await supabase.from('applications')
-    .insert({ user_id: user.id, scheme_id: scheme.id, full_name: profile?.full_name || null, email: user.email })
+    .insert({ user_id: user.id, scheme_id: scheme.id, full_name: profile?.full_name || null, email: user.email, coordinator_id })
     .select('id').single();
   if (error || !created) redirect('/akun?error=buat');
   redirect(`/akun/pendaftaran/${created.id}`);
@@ -99,9 +104,11 @@ export async function saveConsent(id: string, agree: boolean): Promise<Res> {
 
 export async function submitApplication(id: string): Promise<Res> {
   const { supabase } = await me();
-  const { error } = await supabase.rpc('submit_application', { p_id: id });
+  const { data, error } = await supabase.rpc('submit_application', { p_id: id });
   revalidatePath(`/akun/pendaftaran/${id}`); revalidatePath('/akun');
-  return error ? { ok: false, error: niceErr(error.message) } : { ok: true };
+  if (error) return { ok: false, error: niceErr(error.message) };
+  await sendAppEmail(id, (data as any)?.status === 'awaiting_payment' ? 'email_siap_bayar' : 'email_terkirim');
+  return { ok: true };
 }
 
 export async function acceptRecommendation(id: string, sessionId?: string): Promise<Res> {
@@ -116,4 +123,44 @@ export async function cancelApplication(id: string): Promise<Res> {
   const { error } = await supabase.rpc('cancel_application', { p_id: id });
   revalidatePath(`/akun/pendaftaran/${id}`); revalidatePath('/akun');
   return error ? { ok: false, error: niceErr(error.message) } : { ok: true };
+}
+
+/* ---------- pembayaran ---------- */
+
+export async function createPayment(id: string): Promise<Res & { token?: string }> {
+  const { supabase, user } = await me();
+  const { data: a } = await supabase.from('applications')
+    .select('id,user_id,reg_code,status,amount,payment_due_at,full_name,email,phone,schemes!applications_scheme_id_fkey(name)').eq('id', id).maybeSingle();
+  if (!a || a.user_id !== user.id) return { ok: false, error: 'Pendaftaran tidak ditemukan.' };
+  if (a.status !== 'awaiting_payment') return { ok: false, error: 'Pendaftaran ini tidak sedang menunggu pembayaran.' };
+  const minutes = Math.floor((new Date(a.payment_due_at).getTime() - Date.now()) / 60000);
+  if (minutes < 5) return { ok: false, error: 'Batas pembayaran sudah lewat. Hubungi admin untuk dibuka kembali.' };
+  const db = createAdminClient();
+  const { data: prev } = await db.from('payments').select('order_id,snap_token,status,amount,created_at').eq('application_id', id).order('created_at', { ascending: false });
+  const reuse = (prev || []).find((p: any) => p.status === 'pending' && p.snap_token && Number(p.amount) === Number(a.amount)
+    && Date.now() - new Date(p.created_at).getTime() < 20 * 60 * 60 * 1000);
+  if (reuse) return { ok: true, token: reuse.snap_token };
+  const orderId = `${a.reg_code}-P${(prev?.length || 0) + 1}`;
+  try {
+    const token = await createSnap({ orderId, amount: Number(a.amount), name: a.full_name || 'Peserta', email: a.email || user.email!,
+      phone: a.phone || '', item: `Sertifikasi BNSP ${(a as any).schemes?.name || ''}`, minutes });
+    const { error } = await db.from('payments').insert({ application_id: id, order_id: orderId, amount: a.amount, status: 'pending', snap_token: token, expires_at: a.payment_due_at });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, token };
+  } catch (e: any) { return { ok: false, error: 'Gagal membuka pembayaran: ' + e.message }; }
+}
+
+/** Cek status ke Midtrans (cadangan jika notifikasi terlambat). */
+export async function checkPayment(id: string): Promise<Res & { status?: string }> {
+  const { supabase, user } = await me();
+  const { data: a } = await supabase.from('applications').select('id,user_id').eq('id', id).maybeSingle();
+  if (!a || a.user_id !== user.id) return { ok: false, error: 'Pendaftaran tidak ditemukan.' };
+  const { data: pays } = await createAdminClient().from('payments').select('order_id').eq('application_id', id).order('created_at', { ascending: false }).limit(3);
+  let last: string | undefined;
+  for (const p of pays || []) {
+    const s = await getStatus(p.order_id);
+    if (s?.transaction_status) { const r = await applyMidtrans(s); last = r.status as string; if (last === 'paid') break; }
+  }
+  revalidatePath(`/akun/pendaftaran/${id}`);
+  return { ok: true, status: last };
 }
