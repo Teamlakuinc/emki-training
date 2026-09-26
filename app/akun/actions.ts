@@ -39,7 +39,7 @@ export async function saveSession(id: string, sessionId: string): Promise<Res> {
   return error ? { ok: false, error: niceErr(error.message) } : { ok: true };
 }
 
-export async function savePersonal(id: string, d: Record<string, string>): Promise<Res> {
+export async function savePersonal(id: string, d: Record<string, string>, extra: Record<string, string> = {}): Promise<Res> {
   const { supabase } = await me();
   const nik = (d.nik || '').replace(/\D/g, '');
   if (nik && nik.length !== 16) return { ok: false, error: 'NIK harus 16 digit angka.' };
@@ -50,6 +50,7 @@ export async function savePersonal(id: string, d: Record<string, string>): Promi
     gender: d.gender === 'L' || d.gender === 'P' ? d.gender : null, address_ktp: clean(d.address_ktp), city: clean(d.city),
     province: clean(d.province), phone: clean(d.phone), email: clean(d.email), education: clean(d.education),
     occupation: clean(d.occupation), workplace: clean(d.workplace), experience_years: exp,
+    extra_answers: Object.fromEntries(Object.entries(extra || {}).filter(([k]) => /^[a-z0-9_]{1,60}$/.test(k)).map(([k, v]) => [k, String(v ?? '').slice(0, 1000)])),
   };
   const { error } = await supabase.from('applications').update(payload).eq('id', id);
   revalidatePath(`/akun/pendaftaran/${id}`);

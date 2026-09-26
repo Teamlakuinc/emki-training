@@ -14,6 +14,8 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  let staff = false;
+  if (user) { const { data: pr } = await supabase.from('profiles').select('role').eq('id', user.id).single(); staff = !!pr && ['super_admin', 'admin', 'verifikator'].includes(pr.role); }
   return (
     <html lang="id">
       <head>
@@ -27,7 +29,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <a className="brand" href="https://edukasikuliner.com/"><img src="/logo-emki.png" alt="EMKI" /><span>Pendaftaran Sertifikasi</span></a>
             <nav>
               <a href="https://edukasikuliner.com/sertifikasi/">Skema</a>
-              {user ? (<><Link href="/akun">Akun Saya</Link><a href="/keluar">Keluar</a></>) : (<><Link href="/masuk">Masuk</Link><Link href="/daftar-akun" className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 14 }}>Buat Akun</Link></>)}
+              {user ? (<>{staff && <Link href="/admin">Panel Admin</Link>}<Link href="/akun">Akun Saya</Link><a href="/keluar">Keluar</a></>) : (<><Link href="/masuk">Masuk</Link><Link href="/daftar-akun" className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 14 }}>Buat Akun</Link></>)}
             </nav>
           </div>
         </header>

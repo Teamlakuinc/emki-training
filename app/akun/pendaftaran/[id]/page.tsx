@@ -18,6 +18,11 @@ export default async function Page({ params }: { params: { id: string } }) {
     supabase.from('verification_logs').select('decision,note,created_at').eq('application_id', app.id).order('created_at', { ascending: false }).limit(5),
   ]);
   const { data: sessions } = await supabase.rpc('available_sessions', { p_scheme_slug: scheme!.slug });
+  const [{ data: reqDocs }, { data: fields }] = await Promise.all([
+    supabase.from('required_documents').select('*').eq('is_active', true).order('sort_order'),
+    supabase.from('custom_fields').select('*').eq('is_active', true).order('sort_order'),
+  ]);
+  const applies = (r: any) => !r.scheme_ids || r.scheme_ids.length === 0 || r.scheme_ids.includes(app.scheme_id);
 
   // info sesi yang sedang dipilih (bisa saja sudah tidak "tersedia" karena penuh/ditutup)
   let current: any = null;
@@ -36,6 +41,7 @@ export default async function Page({ params }: { params: { id: string } }) {
 
   return (
     <Wizard app={app} scheme={scheme} userId={user!.id} sessions={sessions || []} current={current}
-      docs={docs || []} hasSecret={!!hasSecret} logs={logs || []} recommended={recommended} recSessions={recSessions} />
+      docs={docs || []} hasSecret={!!hasSecret} logs={logs || []} recommended={recommended} recSessions={recSessions}
+      reqDocs={(reqDocs || []).filter(applies)} fields={(fields || []).filter(applies)} />
   );
 }

@@ -2,13 +2,13 @@
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { DOCS, PENDIDIKAN, PROVINSI, STATUS, jam, rupiah, tanggal, waktu, waLink } from '@/lib/format';
+import { ACCEPT, PENDIDIKAN, PROVINSI, STATUS, jam, rupiah, tanggal, waktu, waLink } from '@/lib/format';
 import {
   saveSession, savePersonal, saveSiapkerja, recordDocument, getDocUrl, saveConsent,
   submitApplication, acceptRecommendation, cancelApplication,
 } from '@/app/akun/actions';
 
-type Props = { app: any; scheme: any; userId: string; sessions: any[]; current: any; docs: any[]; hasSecret: boolean; logs: any[]; recommended: any; recSessions: any[] };
+type Props = { app: any; scheme: any; userId: string; sessions: any[]; current: any; docs: any[]; hasSecret: boolean; logs: any[]; recommended: any; recSessions: any[]; reqDocs: any[]; fields: any[] };
 const STEPS = ['Jadwal & sesi', 'Data diri', 'Akun SIAPkerja', 'Dokumen', 'Tinjau & kirim'];
 const MAX = 10 * 1024 * 1024;
 
@@ -23,11 +23,12 @@ export default function Wizard(p: Props) {
 
   const done = useMemo(() => [
     !!app.session_id,
-    ['full_name', 'nik', 'birth_place', 'birth_date', 'gender', 'address_ktp', 'city', 'province', 'phone', 'email', 'education', 'occupation', 'workplace'].every(k => !!app[k]) && app.experience_years != null,
+    ['full_name', 'nik', 'birth_place', 'birth_date', 'gender', 'address_ktp', 'city', 'province', 'phone', 'email', 'education', 'occupation', 'workplace'].every(k => !!app[k]) && app.experience_years != null
+      && p.fields.filter(f => f.is_required).every(f => String(app.extra_answers?.[f.code] ?? '').trim() !== ''),
     !!app.siapkerja_email && !!app.siapkerja_phone && p.hasSecret,
-    DOCS.every(d => p.docs.some(x => x.doc_type === d.type)),
+    p.reqDocs.filter(d => d.is_required).every(d => p.docs.some(x => x.doc_type === d.code)),
     !!app.consent_at,
-  ], [app, p.docs, p.hasSecret]);
+  ], [app, p.docs, p.hasSecret, p.reqDocs, p.fields]);
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, okMsg: string, next?: boolean) =>
     start(async () => {
@@ -183,11 +184,12 @@ function StepPersonal(p: StepProps) {
     phone: a.phone || '', email: a.email || '', education: a.education || '', occupation: a.occupation || '',
     workplace: a.workplace || '', experience_years: a.experience_years == null ? '' : String(a.experience_years),
   });
+  const [x, setX] = useState<Record<string, string>>(() => Object.fromEntries(p.fields.map(fl => [fl.code, String(a.extra_answers?.[fl.code] ?? '')])));
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
   const I = (k: string, label: string, extra: any = {}) => (
     <div className="field"><label htmlFor={k}>{label}</label><input id={k} value={f[k]} onChange={set(k)} {...extra} /></div>);
   return (
-    <form onSubmit={e => { e.preventDefault(); p.run(() => savePersonal(a.id, f), 'Data diri tersimpan.', true); }}>
+    <form onSubmit={e => { e.preventDefault(); p.run(() => savePersonal(a.id, f, x), 'Data diri tersimpan.', true); }}>
       <h2>Data diri</h2>
       <p className="muted">Isi sesuai KTP. Data ini dipakai untuk pendaftaran ke LSP dan penerbitan sertifikat.</p>
       {I('full_name', 'Nama lengkap (sesuai KTP)', { autoComplete: 'name' })}
@@ -216,6 +218,16 @@ function StepPersonal(p: StepProps) {
         {I('occupation', 'Pekerjaan / jabatan', { placeholder: 'mis. Cook, Head Chef' })}
         {I('workplace', 'PT / institusi tempat bekerja', { placeholder: 'mis. SPPG ..., Hotel ...' })}
       </div>
+      {p.fields.length > 0 && <h3 style={{ marginTop: 10 }}>Pertanyaan tambahan</h3>}
+      {p.fields.map(fl => {
+        const v = x[fl.code] || ''; const on = (e: any) => setX({ ...x, [fl.code]: e.target.value });
+        const lbl = <label htmlFor={'x_' + fl.code}>{fl.label}{!fl.is_required && <span className="opt"> (opsional)</span>}</label>;
+        return (<div className="field" key={fl.code}>{lbl}
+          {fl.field_type === 'textarea' ? <textarea id={'x_' + fl.code} rows={3} value={v} onChange={on} required={fl.is_required} />
+            : fl.field_type === 'select' ? <select id={'x_' + fl.code} value={v} onChange={on} required={fl.is_required}><option value="">— pilih —</option>{(fl.options || []).map((o: string) => <option key={o}>{o}</option>)}</select>
+            : <input id={'x_' + fl.code} type={fl.field_type === 'number' ? 'number' : fl.field_type === 'date' ? 'date' : 'text'} value={v} onChange={on} required={fl.is_required} />}
+          {fl.help_text && <div className="hint">{fl.help_text}</div>}</div>);
+      })}
       <button className="btn btn-primary" disabled={p.pending}>{p.pending ? 'Menyimpan…' : 'Simpan & lanjut'}</button>
     </form>
   );
@@ -279,18 +291,18 @@ function StepDocs(p: StepProps) {
       <h2>Upload dokumen</h2>
       <p className="muted">File tersimpan secara privat dan hanya dapat dibuka oleh Anda dan tim EMKI.</p>
       {err && <div className="alert alert-err">{err}</div>}
-      {DOCS.map((d, i) => {
-        const cur = p.docs.find(x => x.doc_type === d.type);
+      {p.reqDocs.map((d, i) => {
+        const cur = p.docs.find(x => x.doc_type === d.code); const acc = ACCEPT[d.accept] || ACCEPT.image_pdf;
         return (
-          <div key={d.type} className={`doc ${cur ? 'ok' : ''}`}>
+          <div key={d.code} className={`doc ${cur ? 'ok' : ''}`}>
             <div className="ic">{cur ? '✓' : i + 1}</div>
             <div className="body">
-              <div className="lbl" style={{ marginBottom: 2 }}>{d.label}</div>
-              <div className="muted small">{d.hint}</div>
+              <div className="lbl" style={{ marginBottom: 2 }}>{d.name}{!d.is_required && <span className="opt" style={{ fontWeight: 400 }}> (opsional)</span>}</div>
+              <div className="muted small">{d.description || `Format ${acc.label}, maksimal 10 MB.`}</div>
               {cur && <div className="fn">{cur.file_name} · <button type="button" className="small" style={{ background: 'none', border: 0, color: 'var(--blue)', cursor: 'pointer', padding: 0 }} onClick={() => view(cur.storage_path)}>lihat</button></div>}
               <label className="btn btn-outline" style={{ marginTop: 10, padding: '8px 14px', fontSize: 14 }}>
-                {busy === d.type ? 'Mengunggah…' : cur ? 'Ganti file' : 'Pilih file'}
-                <input type="file" accept={d.accept} hidden disabled={!!busy} onChange={e => { upload(d.type, d.mimes, e.target.files?.[0]); e.target.value = ''; }} />
+                {busy === d.code ? 'Mengunggah…' : cur ? 'Ganti file' : 'Pilih file'}
+                <input type="file" accept={acc.accept} hidden disabled={!!busy} onChange={e => { upload(d.code, acc.mimes, e.target.files?.[0]); e.target.value = ''; }} />
               </label>
             </div>
           </div>
@@ -304,7 +316,7 @@ function StepDocs(p: StepProps) {
           <li>Klik <b>Merge</b>, unduh hasilnya, lalu upload di sini.</li>
         </ol>
       </details>
-      <button className="btn btn-primary" disabled={!DOCS.every(d => p.docs.some(x => x.doc_type === d.type))}
+      <button className="btn btn-primary" disabled={!p.reqDocs.filter(d => d.is_required).every(d => p.docs.some(x => x.doc_type === d.code))}
         onClick={() => p.run(async () => ({ ok: true }), 'Dokumen lengkap.', true)}>Lanjut</button>
     </>
   );

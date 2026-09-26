@@ -102,3 +102,32 @@ main{padding:32px 0}
 .price{font-family:var(--serif);font-weight:600;font-size:24px;color:var(--ink)}
 .center{text-align:center}
 .hdr nav a.btn{color:#fff}.hdr nav a.btn:hover{color:#fff}
+
+/* ============ ADMIN ============ */
+.adm-nav{display:flex;gap:6px;flex-wrap:wrap;margin:-8px 0 22px;border-bottom:1px solid var(--line);padding-bottom:10px}
+.adm-nav a{text-decoration:none;color:var(--slate);font-weight:600;font-size:14px;padding:7px 12px;border-radius:8px}
+.adm-nav a:hover{background:var(--blue-soft);color:var(--blue)}
+.adm-nav .who{margin-left:auto;font-weight:400;font-size:13px;color:var(--muted);align-self:center}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+@media (max-width:760px){.stats{grid-template-columns:1fr 1fr}}
+.stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;text-decoration:none;color:inherit;display:block}
+.stat b{display:block;font-family:var(--serif);font-size:28px;color:var(--ink);line-height:1.1}
+.stat span{font-size:13px}
+.stat.hot{border-color:var(--blue);background:var(--blue-soft)}
+.tbl-wrap{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:14px}
+table.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th,.tbl td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+.tbl th{background:var(--panel);color:var(--ink);font-size:12.5px;position:sticky;top:0}
+.tbl tr:last-child td{border-bottom:0}
+.tbl td.wrap{white-space:normal}
+.tbl a{font-weight:600}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
+.toolbar .field{margin:0}
+.toolbar .field input,.toolbar .field select{padding:8px 10px;font-size:14px}
+.btn-sm{padding:7px 12px;font-size:13.5px}
+.btn-wa{background:#1FAF57;color:#fff}.btn-wa:hover{background:#178f46}
+.pill-row{display:flex;gap:6px;flex-wrap:wrap}
+.chk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+.chk-grid label{display:flex;gap:8px;align-items:center;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;cursor:pointer;background:#fff}
+.secret{font-family:var(--mono);font-size:18px;background:var(--amber-soft);padding:8px 12px;border-radius:8px;display:inline-block}
+.doc-link{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff}
