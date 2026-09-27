@@ -1,6 +1,6 @@
 'use client';
 import { useMemo, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ACCEPT, PENDIDIKAN, PROVINSI, STATUS, jam, rupiah, tanggal, waktu, waLink } from '@/lib/format';
 import {
@@ -17,7 +17,8 @@ export default function Wizard(p: Props) {
   const { app, scheme } = p;
   const editable = ['draft', 'revision_required'].includes(app.status);
   const st = STATUS[app.status];
-  const [step, setStep] = useState(0);
+  const sp = useSearchParams();
+  const [step, setStep] = useState(sp.get('langkah') === '2' && p.app.session_id ? 1 : 0);
   const [msg, setMsg] = useState<{ t: 'ok' | 'err'; m: string } | null>(null);
   const [pending, start] = useTransition();
 
@@ -167,6 +168,7 @@ function PayBox(p: StepProps) {
   }
   return (
     <div className="card" style={{ borderColor: 'var(--green-2)', background: '#FBFEFC', marginBottom: 0 }}>
+      {!p.prod && <div className="alert alert-warn small">⚠️ <b>Mode uji coba pembayaran.</b> Jangan membayar dengan uang sungguhan di halaman ini. Jika Anda peserta, tim kami akan menghubungi Anda melalui WhatsApp untuk instruksi pembayaran.</div>}
       <div className="row between">
         <div><div className="muted small">Total pembayaran</div><div className="price">{rupiah(p.app.amount)}</div>
           <div className="small">Batas pembayaran: <b>{waktu(p.app.payment_due_at)}</b></div></div>
@@ -382,7 +384,7 @@ function StepSubmit(p: StepProps & { done: boolean[]; goto: (i: number) => void 
       </ul>
       <label className="check" style={{ margin: '18px 0' }}>
         <input type="checkbox" checked={agree} onChange={e => { setAgree(e.target.checked); saveConsent(p.app.id, e.target.checked); }} />
-        <span>Saya menyatakan data yang saya isi benar, dan menyetujui data pribadi, dokumen, serta data akun SIAPkerja saya digunakan oleh EMKI dan LSP Rajawali <b>hanya untuk proses sertifikasi</b>. Saya bersedia dihubungi admin melalui WhatsApp/email.</span>
+        <span>Saya menyatakan data yang saya isi benar, dan menyetujui data pribadi, dokumen, serta data akun SIAPkerja saya digunakan oleh EMKI dan LSP Rajawali Hospitality Nusantara <b>hanya untuk proses sertifikasi</b>. Saya bersedia dihubungi admin melalui WhatsApp/email.</span>
       </label>
       <div className="alert alert-info small">
         {verify

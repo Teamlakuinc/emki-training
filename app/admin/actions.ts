@@ -247,3 +247,26 @@ export async function emailSchedule(scheduleId: string): Promise<Res> {
   for (const a of apps || []) if (await sendAppEmail(a.id, 'email_jadwal')) sent++;
   return { ok: true, data: `${sent} dari ${(apps || []).length} email terkirim.` };
 }
+
+/* ---------- markup koordinator: tandai sudah dibayarkan ---------- */
+export async function markMarkupPaid(coordinatorId: string): Promise<Res> {
+  const { supabase } = await requireStaff('admin');
+  const { data, error } = await supabase.from('applications').update({ markup_paid_at: new Date().toISOString() })
+    .eq('coordinator_id', coordinatorId).eq('status', 'paid').is('markup_paid_at', null).gt('markup_amount', 0).select('markup_amount');
+  if (error) return err(error.message);
+  const total = (data || []).reduce((n: number, r: any) => n + Number(r.markup_amount || 0), 0);
+  revalidatePath(`/admin/koordinator/${coordinatorId}`);
+  return { ok: true, data: { count: data?.length || 0, total } };
+}
+
+/* ---------- urutan sesi berdasarkan skema ---------- */
+export async function rebalanceSessions(scheduleId: string, apply: boolean, notify: boolean): Promise<Res> {
+  const { supabase } = await requireStaff('admin');
+  const { data, error } = await supabase.rpc('admin_rebalance_sessions', { p_schedule: scheduleId, p_apply: apply });
+  if (error) return err(error.message);
+  if (apply) {
+    if (notify) for (const m of (data as any[]) || []) await sendAppEmail(m.application_id, 'email_pindah_sesi');
+    revalidatePath(`/admin/jadwal/${scheduleId}`);
+  }
+  return { ok: true, data };
+}

@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = {
   title: { default: 'Pendaftaran Sertifikasi — EMKI', template: '%s — EMKI Sertifikasi' },
-  description: 'Pendaftaran Sertifikasi Kompetensi BNSP Juru Masak bersama EMKI dan LSP Rajawali.',
+  description: 'Pendaftaran Sertifikasi Kompetensi BNSP Juru Masak bersama EMKI dan LSP Rajawali Hospitality Nusantara.',
   icons: { icon: '/favicon.png' },
   robots: { index: false, follow: false },
 };
@@ -29,6 +29,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <a className="brand" href="https://edukasikuliner.com/"><img src="/logo-emki.png" alt="EMKI" /><span>Pendaftaran Sertifikasi</span></a>
             <nav>
               <a href="https://edukasikuliner.com/sertifikasi/">Skema</a>
+              <Link href="/jadwal">Jadwal</Link>
               {user ? (<>{staff && <Link href="/admin">Panel Admin</Link>}<Link href="/akun">Akun Saya</Link><a href="/keluar">Keluar</a></>) : (<><Link href="/masuk">Masuk</Link><Link href="/daftar-akun" className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 14 }}>Buat Akun</Link></>)}
             </nav>
           </div>

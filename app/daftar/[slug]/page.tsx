@@ -8,54 +8,89 @@ import { refCoordinatorId } from '@/lib/ref';
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
-  return { title: `Daftar ${params.slug.replace(/-/g, ' ')}` };
+  return { title: `Jadwal & pendaftaran ${params.slug.replace(/-/g, ' ')}` };
 }
 
-export default async function Page({ params }: { params: { slug: string } }) {
+export default async function Page({ params, searchParams }: { params: { slug: string }; searchParams: { sesi?: string } }) {
   const supabase = createClient();
-  const { data: scheme } = await supabase.from('schemes').select('id,slug,name,price,requires_verification').eq('slug', params.slug).eq('is_active', true).maybeSingle();
+  const { data: scheme } = await supabase.from('schemes').select('id,slug,name,requires_verification').eq('slug', params.slug).eq('is_active', true).maybeSingle();
   if (!scheme) notFound();
   const coord = await refCoordinatorId();
   const { data: sessions } = await supabase.rpc('available_sessions', { p_scheme_slug: scheme.slug, p_coordinator: coord });
-  const prices = (sessions || []).map((x: any) => Number(x.price));
-  const minP = prices.length ? Math.min(...prices) : null, maxP = prices.length ? Math.max(...prices) : null;
   const { data: { user } } = await supabase.auth.getUser();
-  const dates = Array.from(new Map((sessions || []).map((s: any) => [s.schedule_id, s])).values()) as any[];
+  const list = (sessions || []) as any[];
+  const groups = Array.from(new Map(list.map(s => [s.schedule_id, s])).values());
   const start = startApplication.bind(null, scheme.slug);
+  const back = (sid?: string) => `/daftar/${scheme.slug}${sid ? `?sesi=${sid}` : ''}`;
+
+  const SessionAction = ({ s }: { s: any }) => {
+    const full = s.seats_left <= 0;
+    if (full) return <span className="badge red">Penuh</span>;
+    if (user) return (
+      <form action={start}><input type="hidden" name="session_id" value={s.session_id} />
+        <button className={`btn btn-sm ${searchParams.sesi === s.session_id ? 'btn-green' : 'btn-primary'}`}>{searchParams.sesi === s.session_id ? 'Lanjutkan dengan sesi ini →' : 'Pilih sesi ini'}</button></form>);
+    return <Link className="btn btn-primary btn-sm" href={`/daftar-akun?next=${encodeURIComponent(back(s.session_id))}`}>Pilih sesi ini</Link>;
+  };
 
   return (
-    <div className="grid2" style={{ alignItems: 'start' }}>
-      <div>
-        <span className="eyebrow">Sertifikasi Kompetensi BNSP</span>
-        <h1>Pendaftaran {scheme.name}</h1>
-        <p className="price">{minP == null ? 'Harga menyesuaikan jadwal' : minP === maxP ? rupiah(minP) : `Mulai ${rupiah(minP)}`}</p>
-        {minP != null && minP !== maxP && <p className="muted small">Harga berbeda per lokasi/jadwal Ujikom.</p>}
-        <p>Lembaga sertifikasi: <b>LSP Rajawali</b></p>
-        <ol className="small" style={{ paddingLeft: 18 }}>
-          <li>Pilih tanggal & sesi Ujikom</li>
-          <li>Isi data diri sesuai KTP</li>
-          <li>Isi data akun SIAPkerja</li>
-          <li>Upload pas foto merah, QR SIAPkerja, dan PDF CV + portfolio + paklaring</li>
-          {scheme.requires_verification ? <li>Tunggu verifikasi dokumen oleh tim EMKI, lalu bayar dalam 3×24 jam</li> : <li>Bayar dalam 3×24 jam setelah pendaftaran dikirim</li>}
-        </ol>
-        <p className="muted small">Pendaftaran bisa disimpan sebagai draft dan dilanjutkan kapan saja.</p>
+    <>
+      <a href="https://edukasikuliner.com/sertifikasi/" className="small">← Semua skema sertifikasi</a>
+      <div className="row between" style={{ margin: '8px 0 18px', alignItems: 'flex-end' }}>
+        <div>
+          <span className="eyebrow">Sertifikasi Kompetensi BNSP · LSP Rajawali Hospitality Nusantara</span>
+          <h1 style={{ marginBottom: 4 }}>Jadwal & pendaftaran {scheme.name}</h1>
+          <p className="muted" style={{ margin: 0 }}>Pilih tanggal, lokasi, dan sesi Ujikom. Harga yang tampil adalah harga final.</p>
+        </div>
+        <Link href="/jadwal" className="btn btn-outline btn-sm">Lihat jadwal semua skema</Link>
       </div>
-      <div className="card">
-        <h2>Jadwal Ujikom tersedia</h2>
-        {dates.length === 0 ? <p className="muted">Belum ada jadwal yang dibuka untuk skema ini. Anda tetap bisa membuat akun dan menyiapkan dokumen; kami akan mengabari saat jadwal dibuka.</p> : (
-          <ul className="small" style={{ paddingLeft: 18 }}>
-            {dates.map(d => <li key={d.schedule_id}><b>{tanggal(d.exam_date)}</b> — {d.tuk}
-              <div className="muted">{(sessions as any[]).filter(s => s.schedule_id === d.schedule_id).map(s => `${s.session_name} ${jam(s.start_time)}–${jam(s.end_time)} (sisa ${s.seats_left})`).join(' · ')}</div><div className="small"><b>{rupiah((sessions as any[]).find(s => s.schedule_id === d.schedule_id)?.price)}</b></div></li>)}
-          </ul>)}
-        {user ? (
-          <form action={start}><button className="btn btn-primary btn-block">Mulai / Lanjutkan Pendaftaran</button></form>
-        ) : (
-          <div className="row" style={{ marginTop: 10 }}>
-            <Link className="btn btn-primary" href={`/daftar-akun?next=/daftar/${scheme.slug}`}>Buat Akun</Link>
-            <Link className="btn btn-outline" href={`/masuk?next=/daftar/${scheme.slug}`}>Sudah punya akun? Masuk</Link>
+
+      {!user && (
+        <div className="alert alert-info">Setelah memilih sesi, Anda akan diminta <b>membuat akun</b> (atau <Link href={`/masuk?next=${encodeURIComponent(back(searchParams.sesi))}`}>masuk</Link> jika sudah punya) untuk menyimpan pendaftaran.</div>
+      )}
+      {user && searchParams.sesi && <div className="alert alert-ok">Sesi pilihan Anda ditandai hijau. Klik <b>Lanjutkan dengan sesi ini</b> untuk mengisi formulir.</div>}
+
+      {groups.length === 0 ? (
+        <div className="card center">
+          <h2>Belum ada jadwal yang dibuka</h2>
+          <p className="muted">Jadwal Ujikom {scheme.name} berikutnya sedang disiapkan. Anda tetap bisa membuat akun dan menyiapkan dokumen lebih dulu.</p>
+          <div className="row" style={{ justifyContent: 'center' }}>
+            {user ? <form action={start}><button className="btn btn-primary">Mulai isi formulir</button></form>
+                  : <Link className="btn btn-primary" href={`/daftar-akun?next=${encodeURIComponent(back())}`}>Buat akun</Link>}
+            <a className="btn btn-outline" href={`https://wa.me/${process.env.NEXT_PUBLIC_WA_ADMIN || '6285117575842'}?text=${encodeURIComponent(`Halo EMKI, saya ingin info jadwal Ujikom ${scheme.name} berikutnya.`)}`} target="_blank" rel="noopener">Tanya jadwal via WhatsApp</a>
           </div>
-        )}
+        </div>
+      ) : groups.map(g => {
+        const ss = list.filter(s => s.schedule_id === g.schedule_id);
+        const left = ss.reduce((n, s) => n + Math.max(s.seats_left, 0), 0);
+        return (
+          <div className="card" key={g.schedule_id}>
+            <div className="row between" style={{ alignItems: 'flex-start' }}>
+              <div>
+                <h2 style={{ marginBottom: 2 }}>{tanggal(g.exam_date)}</h2>
+                <div className="muted">{g.tuk}{g.address ? ` — ${g.address}` : ''}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}><div className="price">{rupiah(ss[0].price)}</div><div className="muted small">{left > 0 ? `Sisa ${left} kursi` : 'Penuh'}</div></div>
+            </div>
+            {ss.map(s => (
+              <div key={s.session_id} className={`sess ${searchParams.sesi === s.session_id ? 'sel' : ''} ${s.seats_left <= 0 ? 'full' : ''}`} style={{ cursor: 'default' }}>
+                <span><b>{s.session_name}</b> · {jam(s.start_time)}–{jam(s.end_time)} WIB <span className={`badge ${s.seats_left <= 0 ? 'red' : s.seats_left <= 3 ? 'amber' : 'green'}`} style={{ marginLeft: 6 }}>{s.seats_left <= 0 ? 'Penuh' : `Sisa ${s.seats_left}`}</span></span>
+                <SessionAction s={s} />
+              </div>
+            ))}
+          </div>
+        );
+      })}
+
+      <div className="card" style={{ background: 'var(--panel)' }}>
+        <h3>Alur setelah memilih sesi</h3>
+        <ol className="small" style={{ paddingLeft: 18, margin: 0 }}>
+          <li>Isi data diri sesuai KTP & data akun SIAPkerja</li>
+          <li>Upload dokumen (pas foto merah, QR SIAPkerja, CV + portfolio + paklaring)</li>
+          {scheme.requires_verification ? <li>Tim EMKI memverifikasi dokumen, lalu Anda membayar dalam 3×24 jam</li> : <li>Bayar online dalam 3×24 jam — kursi ditahan selama itu</li>}
+          <li>Terima konfirmasi & jadwal lewat email dan WhatsApp</li>
+        </ol>
+        <p className="muted small" style={{ margin: '8px 0 0' }}>Formulir tersimpan otomatis sebagai draft — bisa dilanjutkan kapan saja.</p>
       </div>
-    </div>
+    </>
   );
 }

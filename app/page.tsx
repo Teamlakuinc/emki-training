@@ -17,7 +17,7 @@ export default async function Home() {
   }));
   return (
     <>
-      <span className="eyebrow">Sertifikasi Kompetensi BNSP · LSP Rajawali</span>
+      <span className="eyebrow">Sertifikasi Kompetensi BNSP · LSP Rajawali Hospitality Nusantara</span>
       <h1>Pilih skema sertifikasi</h1>
       <p className="muted">Pilih skema untuk mulai mendaftar. Informasi lengkap tiap skema ada di <a href="https://edukasikuliner.com/sertifikasi/">edukasikuliner.com/sertifikasi</a>.</p>
       <div className="grid2" style={{ marginTop: 20 }}>

@@ -20,21 +20,31 @@ async function me() {
   return { supabase, user };
 }
 
-export async function startApplication(slug: string) {
+export async function startApplication(slug: string, formData?: FormData) {
   const { supabase, user } = await me();
+  const sessionId = (formData?.get('session_id') as string) || null;
   const { data: scheme } = await supabase.from('schemes').select('id').eq('slug', slug).eq('is_active', true).single();
   if (!scheme) redirect('/?skema=tidak-ditemukan');
-  const { data: existing } = await supabase.from('applications').select('id')
+  // sesi yang dipilih harus memang tersedia untuk skema ini
+  let validSession: string | null = null;
+  if (sessionId) {
+    const { data: av } = await supabase.rpc('available_sessions', { p_scheme_slug: slug });
+    if ((av || []).some((x: any) => x.session_id === sessionId && x.seats_left > 0)) validSession = sessionId;
+  }
+  const { data: existing } = await supabase.from('applications').select('id,status')
     .eq('user_id', user.id).eq('scheme_id', scheme.id)
     .in('status', ['draft', 'submitted', 'revision_required', 'recommended', 'awaiting_payment']).maybeSingle();
-  if (existing) redirect(`/akun/pendaftaran/${existing.id}`);
+  if (existing) {
+    if (validSession && existing.status === 'draft') await supabase.from('applications').update({ session_id: validSession }).eq('id', existing.id);
+    redirect(`/akun/pendaftaran/${existing.id}${validSession ? '?langkah=2' : ''}`);
+  }
   const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
   const coordinator_id = await refCoordinatorId();
   const { data: created, error } = await supabase.from('applications')
-    .insert({ user_id: user.id, scheme_id: scheme.id, full_name: profile?.full_name || null, email: user.email, coordinator_id })
+    .insert({ user_id: user.id, scheme_id: scheme.id, full_name: profile?.full_name || null, email: user.email, coordinator_id, session_id: validSession })
     .select('id').single();
   if (error || !created) redirect('/akun?error=buat');
-  redirect(`/akun/pendaftaran/${created.id}`);
+  redirect(`/akun/pendaftaran/${created.id}${validSession ? '?langkah=2' : ''}`);
 }
 
 export async function saveSession(id: string, sessionId: string): Promise<Res> {

@@ -6,6 +6,7 @@ import ScheduleForm from '@/components/admin/ScheduleForm';
 import SessionEditor from '@/components/admin/SessionEditor';
 import ApplicantTable from '@/components/admin/ApplicantTable';
 import EmailScheduleButton from '@/components/admin/EmailScheduleButton';
+import RebalancePanel from '@/components/admin/RebalancePanel';
 
 export default async function Page({ params, searchParams }: { params: { id: string }; searchParams: { semua?: string } }) {
   const { supabase, role } = await requireStaff();
@@ -42,6 +43,7 @@ export default async function Page({ params, searchParams }: { params: { id: str
       </div>)}
 
       {admin && <>
+        <RebalancePanel scheduleId={j.id} />
         <h2 style={{ marginTop: 28 }}>Sesi & kuota</h2>
         <SessionEditor scheduleId={j.id} sessions={sessions || []} counts={counts} />
         <div className="card" style={{ marginTop: 24 }}><h2>Pengaturan jadwal</h2>
