@@ -38,6 +38,9 @@ export default function CoordinatorForm({ c, schemes, markups = [] }: { c?: any;
         </tbody></table></div>
         <div className="hint">Markup dihitung dari harga jadwal (termasuk harga khusus lokasi). Persen dibulatkan ke rupiah terdekat.</div>
       </div>
+      <div className="field"><label>Komisi tetap per peserta lunas (jika skema tidak punya markup)</label>
+        <input name="flat_commission" inputMode="numeric" defaultValue={c?.flat_commission ?? 100000} {...inp} />
+        <div className="hint">Kalau peserta terkena markup, komisi = markup. Kalau tidak ada markup, komisi = angka ini (dibayar EMKI).</div></div>
       <div className="row between">
         <label className="check small"><input type="checkbox" name="is_active" defaultChecked={c?.is_active ?? true} />Aktif (link bisa dipakai)</label>
         <button className="btn btn-primary" disabled={pending}>{c ? 'Simpan' : 'Buat koordinator'}</button>

@@ -6,6 +6,7 @@ export default async function Dashboard({ searchParams }: { searchParams: { akse
   const { supabase } = await requireStaff();
   const { data: s } = await supabase.rpc('admin_dashboard_stats');
   const st: any = s || {};
+  const { count: review } = await supabase.from('applications').select('id', { count: 'exact', head: true }).eq('status', 'payment_review');
   const { data: sched } = await supabase.from('exam_schedules').select('id,title,exam_date,tuk,status').in('status', ['open', 'closed']).order('exam_date').limit(6);
   const card = (href: string, n: any, label: string, hot = false) =>
     <Link className={`stat ${hot && n > 0 ? 'hot' : ''}`} href={href}><b>{n ?? 0}</b><span>{label}</span></Link>;
@@ -15,6 +16,7 @@ export default async function Dashboard({ searchParams }: { searchParams: { akse
       <h1>Dashboard</h1>
       <div className="stats">
         {card('/admin/pendaftar?status=submitted', st.menunggu_verifikasi, 'Menunggu verifikasi', true)}
+        {card('/admin/pembayaran', review, 'Bukti transfer menunggu konfirmasi', true)}
         {card('/admin/pendaftar?status=awaiting_payment', st.menunggu_bayar, 'Menunggu pembayaran')}
         {card('/admin/pendaftar?status=paid', st.lunas, 'Lunas')}
         {card('/admin/pendaftar?status=revision_required', st.perlu_perbaikan, 'Perlu perbaikan')}

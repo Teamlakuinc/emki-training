@@ -1,9 +1,10 @@
 'use server';
 import { revalidatePath } from 'next/cache';
 import { requireStaff } from '@/lib/admin';
+import { createClient } from '@/lib/supabase/server';
 import { decryptSecret } from '@/lib/crypto';
 import { headers } from 'next/headers';
-import { sendAppEmail } from '@/lib/email';
+import { sendAppEmail, readyToPayKey } from '@/lib/email';
 
 type Res = { ok: boolean; error?: string; data?: any };
 const err = (m?: string) => ({ ok: false, error: (m || 'Terjadi kesalahan.').replace(/^.*?ERROR:\s*/, '') });
@@ -16,7 +17,7 @@ export async function decide(id: string, decision: string, note: string, recomme
   });
   revalidatePath(`/admin/pendaftar/${id}`); revalidatePath('/admin');
   if (error) return err(error.message);
-  const key = { approve: 'email_siap_bayar', revision: 'email_revisi', recommend: 'email_rekomendasi', reject: 'email_ditolak' }[decision];
+  const key = { approve: await readyToPayKey(), revision: 'email_revisi', recommend: 'email_rekomendasi', reject: 'email_ditolak' }[decision];
   if (key) await sendAppEmail(id, key);
   return { ok: true };
 }
@@ -44,7 +45,7 @@ export async function saveAdminNotes(id: string, notes: string, result: string):
 
 /* ---------- password SIAPkerja (admin, tercatat) ---------- */
 export async function revealSecret(id: string, reason: string): Promise<Res> {
-  const { supabase } = await requireStaff('admin');
+  const supabase = createClient();   // wewenang dicek di database (staf atau koordinator peserta ini, wajib 2 langkah)
   if (!reason || reason.trim().length < 5) return err('Tuliskan alasan singkat (minimal 5 karakter).');
   const ip = headers().get('x-real-ip') || headers().get('x-forwarded-for') || null;
   const { data, error } = await supabase.rpc('admin_reveal_secret', { p_application: id, p_reason: reason.trim(), p_ip: ip });
@@ -133,12 +134,20 @@ export async function saveTemplate(f: FormData): Promise<Res> {
 }
 
 /* ---------- tim (super admin) ---------- */
-export async function setRole(email: string, role: string): Promise<Res> {
+export async function setRole(email: string, role: string, coordinatorId?: string): Promise<Res> {
   const { supabase } = await requireStaff('super');
-  if (!['admin', 'verifikator', 'participant'].includes(role)) return err('Role tidak valid.');
-  const { data, error } = await supabase.from('profiles').update({ role }).eq('email', email.trim().toLowerCase()).select('id');
+  if (!['verifikator', 'koordinator', 'participant'].includes(role)) return err('Role tidak valid.');
+  const { data: prof } = await supabase.from('profiles').select('id,role').eq('email', email.trim().toLowerCase()).maybeSingle();
+  if (!prof) return err('Email belum terdaftar. Minta orangnya membuat akun dulu di halaman Buat Akun.');
+  if (prof.role === 'super_admin') return err('Role Super Admin tidak bisa diubah dari sini.');
+  if (role === 'koordinator' && !coordinatorId) return err('Pilih data koordinator yang dihubungkan ke akun ini.');
+  const { error } = await supabase.from('profiles').update({ role }).eq('id', prof.id);
   if (error) return err(error.message);
-  if (!data?.length) return err('Email belum terdaftar. Minta orangnya membuat akun dulu di halaman Buat Akun.');
+  await supabase.from('coordinators').update({ user_id: null }).eq('user_id', prof.id);
+  if (role === 'koordinator') {
+    const { error: e2 } = await supabase.from('coordinators').update({ user_id: prof.id }).eq('id', coordinatorId);
+    if (e2) return err(e2.message);
+  }
   revalidatePath('/admin/tim');
   return { ok: true };
 }
@@ -214,7 +223,8 @@ export async function saveCoordinator(f: FormData): Promise<Res> {
   const id = f.get('id') as string | null;
   const code = String(f.get('code') || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
   const payload: any = { code, name: String(f.get('name') || '').trim(), phone: String(f.get('phone') || '').trim() || null,
-    notes: String(f.get('notes') || '').trim() || null, is_active: f.get('is_active') === 'on' };
+    notes: String(f.get('notes') || '').trim() || null, is_active: f.get('is_active') === 'on',
+    flat_commission: Number(String(f.get('flat_commission') ?? '100000').replace(/\D/g, '') || 0) };
   if (code.length < 2 || !payload.name) return err('Kode (min. 2 huruf/angka) dan nama wajib diisi.');
   let cid = id;
   if (id) { const { error } = await supabase.from('coordinators').update(payload).eq('id', id); if (error) return err(error.message.includes('duplicate') ? 'Kode sudah dipakai.' : error.message); }
@@ -252,9 +262,9 @@ export async function emailSchedule(scheduleId: string): Promise<Res> {
 export async function markMarkupPaid(coordinatorId: string): Promise<Res> {
   const { supabase } = await requireStaff('admin');
   const { data, error } = await supabase.from('applications').update({ markup_paid_at: new Date().toISOString() })
-    .eq('coordinator_id', coordinatorId).eq('status', 'paid').is('markup_paid_at', null).gt('markup_amount', 0).select('markup_amount');
+    .eq('coordinator_id', coordinatorId).eq('status', 'paid').is('markup_paid_at', null).gt('commission_amount', 0).select('commission_amount');
   if (error) return err(error.message);
-  const total = (data || []).reduce((n: number, r: any) => n + Number(r.markup_amount || 0), 0);
+  const total = (data || []).reduce((n: number, r: any) => n + Number(r.commission_amount || 0), 0);
   revalidatePath(`/admin/koordinator/${coordinatorId}`);
   return { ok: true, data: { count: data?.length || 0, total } };
 }
@@ -269,4 +279,52 @@ export async function rebalanceSessions(scheduleId: string, apply: boolean, noti
     revalidatePath(`/admin/jadwal/${scheduleId}`);
   }
   return { ok: true, data };
+}
+
+
+/* ---------- konfirmasi pembayaran transfer (Super Admin + Verifikator) ---------- */
+export async function reviewPayment(proofId: string, approve: boolean, note: string): Promise<Res> {
+  const { supabase } = await requireStaff();
+  const { data, error } = await supabase.rpc('review_payment', { p_proof: proofId, p_approve: approve, p_note: note || null });
+  if (error) return err(error.message);
+  const a: any = data;
+  if (approve) await sendAppEmail(a.id, 'email_lunas');
+  else await sendAppEmail(a.id, 'email_bukti_ditolak', { catatan: note });
+  revalidatePath('/admin/pembayaran'); revalidatePath('/admin');
+  return { ok: true };
+}
+
+/* ---------- pengaturan pembayaran & rekening (Super Admin) ---------- */
+export async function savePaymentMethod(method: string): Promise<Res> {
+  const { supabase } = await requireStaff('super');
+  if (!['manual', 'midtrans', 'both'].includes(method)) return err('Pilihan tidak valid.');
+  const { error } = await supabase.from('app_settings').upsert({ key: 'payment_method', value: method, updated_at: new Date().toISOString() });
+  revalidatePath('/admin/pengaturan');
+  return error ? err(error.message) : { ok: true };
+}
+export async function saveBank(f: FormData): Promise<Res> {
+  const { supabase } = await requireStaff('super');
+  const id = f.get('id') as string | null;
+  const payload = { bank: String(f.get('bank') || '').trim(), account_number: String(f.get('account_number') || '').replace(/\s/g, ''),
+    account_name: String(f.get('account_name') || '').trim(), is_active: f.get('is_active') === 'on', sort_order: Number(f.get('sort_order') || 0) };
+  if (!payload.bank || !payload.account_number || !payload.account_name) return err('Bank, nomor rekening, dan atas nama wajib diisi.');
+  const { error } = id ? await supabase.from('bank_accounts').update(payload).eq('id', id) : await supabase.from('bank_accounts').insert(payload);
+  revalidatePath('/admin/pengaturan');
+  return error ? err(error.message) : { ok: true };
+}
+export async function deleteBank(id: string): Promise<Res> {
+  const { supabase } = await requireStaff('super');
+  const { error } = await supabase.from('bank_accounts').delete().eq('id', id);
+  revalidatePath('/admin/pengaturan');
+  return error ? err(error.message) : { ok: true };
+}
+
+/* ---------- dokumen yang diisi tim (mis. screenshot Sisfo) — Super Admin / koordinator pesertanya ---------- */
+export async function recordStaffDocument(appId: string, doc: { type: string; path: string; name: string; mime: string; size: number }): Promise<Res> {
+  const supabase = createClient();   // wewenang dicek oleh RLS
+  if (!doc.path.includes(`/${appId}/tim-`)) return err('Lokasi file tidak valid.');
+  const { error } = await supabase.from('application_documents').insert({
+    application_id: appId, doc_type: doc.type, storage_path: doc.path, file_name: doc.name.slice(0, 200), mime_type: doc.mime, size_bytes: doc.size });
+  revalidatePath(`/admin/pendaftar/${appId}`); revalidatePath(`/koordinator/peserta/${appId}`);
+  return error ? err(error.message) : { ok: true };
 }

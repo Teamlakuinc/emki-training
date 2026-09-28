@@ -15,7 +15,8 @@ export async function GET(request: Request) {
   if (!user) return new NextResponse('Silakan masuk', { status: 401 });
   const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (!prof || !['super_admin', 'admin', 'verifikator'].includes(prof.role) || aal?.currentLevel !== 'aal2')
+  const isCoord = (prof?.role as string) === 'koordinator';
+  if (!prof || !(['super_admin', 'admin', 'verifikator'].includes(prof.role) || isCoord) || aal?.currentLevel !== 'aal2')
     return new NextResponse('Akses ditolak', { status: 403 });
 
   const ids = (new URL(request.url).searchParams.get('ids') || '').split(',').filter(x => /^[0-9a-f-]{36}$/i.test(x)).slice(0, 500);
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
     .select('id,reg_code,full_name,nik,birth_place,birth_date,gender,address_ktp,city,province,phone,email,education,occupation,workplace,experience_years,extra_answers,status,paid_at,amount,coordinators(name,code),schemes!applications_scheme_id_fkey(name,export_label),exam_sessions(name,start_time,end_time,sort_order,exam_schedules(title,exam_date,tuk,asesor))')
     .in('id', ids);
   if (error) return new NextResponse(error.message, { status: 500 });
+  if (isCoord && (apps || []).length !== ids.length) return new NextResponse('Sebagian peserta bukan milik Anda', { status: 403 });
   const rows: any[] = (apps || []).sort((a: any, b: any) =>
     (a.exam_sessions?.exam_schedules?.exam_date || '').localeCompare(b.exam_sessions?.exam_schedules?.exam_date || '') ||
     (a.exam_sessions?.sort_order ?? 0) - (b.exam_sessions?.sort_order ?? 0) || (a.full_name || '').localeCompare(b.full_name || ''));

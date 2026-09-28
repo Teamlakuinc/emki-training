@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { encryptSecret } from '@/lib/crypto';
 import { createSnap, getStatus } from '@/lib/midtrans';
 import { applyMidtrans } from '@/lib/payments';
-import { sendAppEmail } from '@/lib/email';
+import { sendAppEmail, readyToPayKey } from '@/lib/email';
 import { refCoordinatorId } from '@/lib/ref';
 
 type Res = { ok: boolean; error?: string };
@@ -117,7 +117,7 @@ export async function submitApplication(id: string): Promise<Res> {
   const { data, error } = await supabase.rpc('submit_application', { p_id: id });
   revalidatePath(`/akun/pendaftaran/${id}`); revalidatePath('/akun');
   if (error) return { ok: false, error: niceErr(error.message) };
-  await sendAppEmail(id, (data as any)?.status === 'awaiting_payment' ? 'email_siap_bayar' : 'email_terkirim');
+  await sendAppEmail(id, (data as any)?.status === 'awaiting_payment' ? await readyToPayKey() : 'email_terkirim');
   return { ok: true };
 }
 
@@ -173,4 +173,17 @@ export async function checkPayment(id: string): Promise<Res & { status?: string 
   }
   revalidatePath(`/akun/pendaftaran/${id}`);
   return { ok: true, status: last };
+}
+
+/* ---------- transfer manual: kirim bukti ---------- */
+export async function submitProof(id: string, d: { path: string; name: string; mime: string; size: number; sender_name: string; sender_bank: string; transfer_date: string }): Promise<Res> {
+  const { supabase } = await me();
+  const { error } = await supabase.rpc('submit_payment_proof', {
+    p_application: id, p_path: d.path, p_file_name: d.name, p_mime: d.mime, p_size: d.size,
+    p_sender_name: d.sender_name, p_sender_bank: d.sender_bank, p_transfer_date: d.transfer_date,
+  });
+  revalidatePath(`/akun/pendaftaran/${id}`); revalidatePath('/akun');
+  if (error) return { ok: false, error: niceErr(error.message) };
+  await sendAppEmail(id, 'email_bukti_diterima');
+  return { ok: true };
 }

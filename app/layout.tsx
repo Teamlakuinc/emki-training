@@ -14,8 +14,8 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  let staff = false;
-  if (user) { const { data: pr } = await supabase.from('profiles').select('role').eq('id', user.id).single(); staff = !!pr && ['super_admin', 'admin', 'verifikator'].includes(pr.role); }
+  let staff = false, coord = false;
+  if (user) { const { data: pr } = await supabase.from('profiles').select('role').eq('id', user.id).single(); staff = !!pr && ['super_admin', 'admin', 'verifikator'].includes(pr.role); coord = (pr?.role as string) === 'koordinator'; }
   return (
     <html lang="id">
       <head>
@@ -30,7 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <nav>
               <a href="https://edukasikuliner.com/sertifikasi/">Skema</a>
               <Link href="/jadwal">Jadwal</Link>
-              {user ? (<>{staff && <Link href="/admin">Panel Admin</Link>}<Link href="/akun">Akun Saya</Link><a href="/keluar">Keluar</a></>) : (<><Link href="/masuk">Masuk</Link><Link href="/daftar-akun" className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 14 }}>Buat Akun</Link></>)}
+              {user ? (<>{staff && <Link href="/admin">Panel Admin</Link>}{coord && <Link href="/koordinator">Portal Koordinator</Link>}<Link href="/akun">Akun Saya</Link><a href="/keluar">Keluar</a></>) : (<><Link href="/masuk">Masuk</Link><Link href="/daftar-akun" className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 14 }}>Buat Akun</Link></>)}
             </nav>
           </div>
         </header>

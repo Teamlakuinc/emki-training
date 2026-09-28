@@ -23,7 +23,7 @@ function html(body: string) {
 }
 
 /** Kirim email template ke peserta pendaftaran. Tidak pernah melempar error (gagal kirim cukup dicatat). */
-export async function sendAppEmail(appId: string, key: string): Promise<boolean> {
+export async function sendAppEmail(appId: string, key: string, extra: Record<string, string> = {}): Promise<boolean> {
   try {
     const t = tx(); if (!t) return false;
     const db = createAdminClient();
@@ -34,7 +34,7 @@ export async function sendAppEmail(appId: string, key: string): Promise<boolean>
     if (!tpl || !tpl.is_active || !a?.email) return false;
     const { data: u } = await db.from('applications').select('user_id').eq('id', appId).single();
     const { data: prof } = await db.from('profiles').select('email').eq('id', u!.user_id).single();
-    const vars = varsFor(a, process.env.NEXT_PUBLIC_SITE_URL || '');
+    const vars = { ...varsFor(a, process.env.NEXT_PUBLIC_SITE_URL || ''), ...extra };
     const to = Array.from(new Set([a.email, prof?.email].filter(Boolean))).join(', ');
     await t.sendMail({
       from: process.env.SMTP_FROM || `EMKI Sertifikasi <${process.env.SMTP_USER}>`, to, replyTo: process.env.SMTP_USER,
@@ -43,4 +43,10 @@ export async function sendAppEmail(appId: string, key: string): Promise<boolean>
     await db.from('notification_logs').insert({ application_id: appId, channel: 'email', template_key: key });
     return true;
   } catch (e) { console.error('email gagal', key, e); return false; }
+}
+
+/** Template "siap bayar" sesuai metode pembayaran yang aktif */
+export async function readyToPayKey(): Promise<string> {
+  const { data } = await createAdminClient().from('app_settings').select('value').eq('key', 'payment_method').maybeSingle();
+  return (data?.value as any) === 'midtrans' ? 'email_siap_bayar' : 'email_siap_bayar_transfer';
 }

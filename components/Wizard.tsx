@@ -5,10 +5,10 @@ import { createClient } from '@/lib/supabase/client';
 import { ACCEPT, PENDIDIKAN, PROVINSI, STATUS, jam, rupiah, tanggal, waktu, waLink } from '@/lib/format';
 import {
   saveSession, savePersonal, saveSiapkerja, recordDocument, getDocUrl, saveConsent,
-  submitApplication, acceptRecommendation, cancelApplication, createPayment, checkPayment,
+  submitApplication, acceptRecommendation, cancelApplication, createPayment, checkPayment, submitProof,
 } from '@/app/akun/actions';
 
-type Props = { app: any; scheme: any; userId: string; sessions: any[]; current: any; docs: any[]; hasSecret: boolean; logs: any[]; recommended: any; recSessions: any[]; reqDocs: any[]; fields: any[]; clientKey: string; prod: boolean };
+type Props = { app: any; scheme: any; userId: string; sessions: any[]; current: any; docs: any[]; hasSecret: boolean; logs: any[]; recommended: any; recSessions: any[]; reqDocs: any[]; fields: any[]; clientKey: string; prod: boolean; method: string; banks: any[]; proofs: any[] };
 const STEPS = ['Jadwal & sesi', 'Data diri', 'Akun SIAPkerja', 'Dokumen', 'Tinjau & kirim'];
 const MAX = 10 * 1024 * 1024;
 
@@ -124,7 +124,13 @@ function StatusPanel(p: StepProps) {
         </div>
       )}
 
-      {app.status === 'awaiting_payment' && <PayBox {...p} />}
+      {app.status === 'awaiting_payment' && (p.method === 'midtrans' ? <PayBox {...p} /> : <>
+        <TransferBox {...p} />
+        {p.method === 'both' && <><p className="muted small center" style={{ margin: '12px 0' }}>— atau bayar online —</p><PayBox {...p} /></>}
+      </>)}
+      {app.status === 'payment_review' && p.proofs[0] && (
+        <div className="alert alert-info" style={{ marginBottom: 0 }}>Bukti transfer dari <b>{p.proofs[0].sender_name}</b> ({p.proofs[0].sender_bank}, {tanggal(p.proofs[0].transfer_date)}) sedang dicek. Total: <b>{rupiah(app.amount)}</b>.</div>
+      )}
 
       {['submitted', 'recommended', 'awaiting_payment'].includes(app.status) && (
         <p className="small" style={{ marginTop: 14, marginBottom: 0 }}>
@@ -132,6 +138,61 @@ function StatusPanel(p: StepProps) {
             onClick={() => { if (confirm('Batalkan pendaftaran ini? Kursi Ujikom Anda akan dilepas.')) p.run(() => cancelApplication(app.id), 'Pendaftaran dibatalkan.'); }}>Batalkan pendaftaran</button>
         </p>
       )}
+    </div>
+  );
+}
+
+/* ---------------- transfer manual ---------------- */
+function TransferBox(p: StepProps) {
+  const router = useRouter();
+  const [f, setF] = useState({ sender_name: p.app.full_name || '', sender_bank: '', transfer_date: new Date().toISOString().slice(0, 10) });
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [copied, setCopied] = useState('');
+  const rejected = p.proofs[0]?.status === 'rejected' ? p.proofs[0] : null;
+  const copy = (t: string, k: string) => { navigator.clipboard?.writeText(t); setCopied(k); setTimeout(() => setCopied(''), 1500); };
+  async function send(e: React.FormEvent) {
+    e.preventDefault(); setErr('');
+    if (!file) return setErr('Pilih file bukti transfer.');
+    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.type)) return setErr('Format bukti harus JPG, PNG, atau PDF.');
+    if (file.size > MAX) return setErr('Ukuran file maksimal 10 MB.');
+    setBusy(true);
+    const ext = file.type === 'application/pdf' ? 'pdf' : file.type === 'image/png' ? 'png' : 'jpg';
+    const path = `${p.userId}/${p.app.id}/bukti-${Date.now()}.${ext}`;
+    const { error } = await createClient().storage.from('application-documents').upload(path, file, { contentType: file.type, upsert: false });
+    if (error) { setBusy(false); return setErr('Upload gagal: ' + error.message); }
+    const r = await submitProof(p.app.id, { path, name: file.name, mime: file.type, size: file.size, ...f });
+    setBusy(false);
+    if (!r.ok) return setErr(r.error || 'Gagal mengirim bukti.');
+    router.refresh();
+  }
+  return (
+    <div className="card" style={{ borderColor: 'var(--green-2)', background: '#FBFEFC', marginBottom: 0 }}>
+      {rejected && <div className="alert alert-warn"><b>Bukti sebelumnya belum bisa dikonfirmasi:</b> {rejected.review_note}</div>}
+      <div className="muted small">Total yang harus ditransfer</div>
+      <div className="row" style={{ alignItems: 'baseline' }}><span className="price">{rupiah(p.app.amount)}</span>
+        <button type="button" className="btn btn-outline btn-sm" onClick={() => copy(String(p.app.amount), 'amt')}>{copied === 'amt' ? 'Tersalin ✓' : 'Salin nominal'}</button></div>
+      <p className="small" style={{ margin: '4px 0 14px' }}>Batas pembayaran: <b>{waktu(p.app.payment_due_at)}</b></p>
+      <div className="lbl">Transfer ke rekening berikut:</div>
+      {p.banks.length === 0 && <div className="alert alert-warn">Rekening tujuan belum tersedia. Hubungi admin melalui WhatsApp.</div>}
+      {p.banks.map((b: any) => (
+        <div key={b.account_number} className="doc-link"><span><b>{b.bank}</b> · <span style={{ fontFamily: 'var(--mono)', fontSize: 16 }}>{b.account_number}</span><div className="muted small">a.n. {b.account_name}</div></span>
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => copy(b.account_number, b.account_number)}>{copied === b.account_number ? 'Tersalin ✓' : 'Salin'}</button></div>
+      ))}
+      <form onSubmit={send} style={{ marginTop: 16, borderTop: '1px dashed var(--line)', paddingTop: 16 }}>
+        <h3>Sudah transfer? Konfirmasi di sini</h3>
+        <div className="grid2">
+          <div className="field"><label htmlFor="sn">Nama pengirim (sesuai rekening)</label><input id="sn" required value={f.sender_name} onChange={e => setF({ ...f, sender_name: e.target.value })} /></div>
+          <div className="field"><label htmlFor="sb">Bank pengirim</label><input id="sb" required placeholder="mis. BCA, Mandiri, BRI" value={f.sender_bank} onChange={e => setF({ ...f, sender_bank: e.target.value })} /></div>
+        </div>
+        <div className="grid2">
+          <div className="field"><label htmlFor="td">Tanggal transfer</label><input id="td" type="date" required max={new Date().toISOString().slice(0, 10)} value={f.transfer_date} onChange={e => setF({ ...f, transfer_date: e.target.value })} /></div>
+          <div className="field"><label htmlFor="bf">Bukti transfer (JPG/PNG/PDF)</label><input id="bf" type="file" accept="image/jpeg,image/png,application/pdf" required onChange={e => setFile(e.target.files?.[0] || null)} /></div>
+        </div>
+        {err && <div className="alert alert-err">{err}</div>}
+        <button className="btn btn-green" disabled={busy}>{busy ? 'Mengirim…' : 'Kirim bukti transfer'}</button>
+      </form>
     </div>
   );
 }

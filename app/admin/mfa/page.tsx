@@ -13,14 +13,16 @@ export default function MfaPage() {
   const [code, setCode] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [dest, setDest] = useState('/admin');
 
   useEffect(() => { (async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.replace('/masuk?next=/admin'); return; }
     const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (!prof || !['super_admin', 'admin', 'verifikator'].includes(prof.role)) { setMode('denied'); return; }
+    if (!prof || !['super_admin', 'admin', 'verifikator', 'koordinator'].includes(prof.role)) { setMode('denied'); return; }
+    setDest(prof.role === 'koordinator' ? '/koordinator' : '/admin');
     const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aal?.currentLevel === 'aal2') { router.replace('/admin'); return; }
+    if (aal?.currentLevel === 'aal2') { router.replace(prof.role === 'koordinator' ? '/koordinator' : '/admin'); return; }
     const { data: f } = await supabase.auth.mfa.listFactors();
     const verified = f?.totp?.find(x => x.status === 'verified');
     if (verified) { setFactorId(verified.id); setMode('verify'); return; }
@@ -36,10 +38,10 @@ export default function MfaPage() {
     const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: code.replace(/\s/g, '') });
     setBusy(false);
     if (error) { setErr('Kode salah atau sudah kedaluwarsa. Coba kode terbaru dari aplikasi.'); return; }
-    router.replace('/admin'); router.refresh();
+    router.replace(dest); router.refresh();
   }
 
-  if (mode === 'denied') return <div className="card narrow" style={{ margin: '0 auto' }}><h1>Akses ditolak</h1><p>Akun ini bukan akun Admin/Verifikator.</p></div>;
+  if (mode === 'denied') return <div className="card narrow" style={{ margin: '0 auto' }}><h1>Akses ditolak</h1><p>Akun ini bukan akun Admin/Verifikator/Koordinator.</p></div>;
   return (
     <div className="card narrow" style={{ margin: '0 auto' }}>
       <span className="eyebrow">Keamanan</span>

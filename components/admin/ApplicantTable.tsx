@@ -33,7 +33,7 @@ export default function ApplicantTable({ rows, templates, site, showSchedule = t
       <div className="tbl-wrap"><table className="tbl">
         <thead><tr>
           <th><input type="checkbox" aria-label="Pilih semua" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(rows.map(r => r.id)))} /></th>
-          <th>Nama</th><th>Skema</th><th>Status</th>{showSchedule && <th>Jadwal & sesi</th>}<th>Pengalaman</th><th>No. Reg</th><th>Kirim WA</th>
+          <th>Nama</th><th>Skema</th><th>Status</th>{showSchedule && <th>Jadwal & sesi</th>}<th>Pengalaman</th><th>Sisfo</th><th>No. Reg</th><th>Kirim WA</th>
         </tr></thead>
         <tbody>
           {rows.map(r => {
@@ -46,6 +46,7 @@ export default function ApplicantTable({ rows, templates, site, showSchedule = t
                 <td><span className={`badge ${st.tone}`}>{st.label}</span></td>
                 {showSchedule && <td className="small">{j ? <>{tanggal(j.exam_date)}<div className="muted">{s.name} {jam(s.start_time)}–{jam(s.end_time)} · {j.tuk}</div></> : '-'}</td>}
                 <td>{r.experience_years != null ? `${r.experience_years} th` : '-'}</td>
+                <td>{(r.application_documents || []).some((d: any) => d.doc_type === 'screenshot_sisfo' && d.is_current) ? <span className="badge green">✓</span> : <span className="badge grey">belum</span>}</td>
                 <td className="small">{r.reg_code || '-'}</td>
                 <td>
                   <select aria-label="Pilih template WA" defaultValue="" disabled={!r.phone}
@@ -58,7 +59,7 @@ export default function ApplicantTable({ rows, templates, site, showSchedule = t
               </tr>
             );
           })}
-          {!rows.length && <tr><td colSpan={8} className="muted">Tidak ada data.</td></tr>}
+          {!rows.length && <tr><td colSpan={9} className="muted">Tidak ada data.</td></tr>}
         </tbody>
       </table></div>
     </>

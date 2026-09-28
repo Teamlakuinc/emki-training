@@ -17,18 +17,21 @@ export default async function Page({ params }: { params: { id: string } }) {
     supabase.from('notification_logs').select('template_key,created_at,profiles(full_name,email)').eq('application_id', a.id).order('created_at', { ascending: false }).limit(10),
   ]);
   const [{ data: reqDocs }, { data: fields }] = await Promise.all([
-    supabase.from('required_documents').select('code,name,is_required,scheme_ids').order('sort_order'),
+    supabase.from('required_documents').select('code,name,description,accept,is_required,scheme_ids,filled_by').order('sort_order'),
     supabase.from('custom_fields').select('code,label,scheme_ids').order('sort_order'),
   ]);
   // sesi lain yang menguji skema ini (untuk pindah sesi)
   const { data: sess } = await supabase.from('exam_sessions')
     .select('id,name,start_time,end_time,quota,exam_schedules!inner(id,title,exam_date,tuk,status,exam_schedule_schemes!inner(scheme_id))')
     .eq('exam_schedules.exam_schedule_schemes.scheme_id', a.scheme_id).order('start_time');
+  const { data: proofs } = await supabase.from('payment_proofs').select('id,status,amount,sender_name,sender_bank,transfer_date,review_note,created_at,storage_path').eq('application_id', a.id).order('created_at', { ascending: false });
+  const proofUrls: Record<string, string> = {};
+  for (const pf of proofs || []) { const { data } = await supabase.storage.from('application-documents').createSignedUrl(pf.storage_path, 600); if (data) proofUrls[pf.id] = data.signedUrl; }
   const urls: Record<string, string> = {};
   for (const d of docs || []) {
     const { data } = await supabase.storage.from('application-documents').createSignedUrl(d.storage_path, 600);
     if (data) urls[d.doc_type] = data.signedUrl;
   }
   return <Detail a={a} docs={docs || []} urls={urls} logs={logs || []} notifs={notifs || []} schemes={schemes || []} templates={templates || []}
-    sessions={sess || []} reqDocs={reqDocs || []} fields={fields || []} hasSecret={!!hasSecret} isAdmin={isAdminRole(role)} site={process.env.NEXT_PUBLIC_SITE_URL || ''} />;
+    sessions={sess || []} reqDocs={reqDocs || []} fields={fields || []} hasSecret={!!hasSecret} isAdmin={isAdminRole(role)} isSuper={role === 'super_admin'} proofs={proofs || []} proofUrls={proofUrls} site={process.env.NEXT_PUBLIC_SITE_URL || ''} />;
 }

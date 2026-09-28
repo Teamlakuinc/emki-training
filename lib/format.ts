@@ -17,6 +17,7 @@ export const STATUS: Record<string, { label: string; tone: string; desc: string 
   revision_required: { label: 'Perlu perbaikan', tone: 'amber', desc: 'Verifikator meminta perbaikan. Perbarui data/dokumen lalu kirim ulang.' },
   recommended:       { label: 'Rekomendasi skema', tone: 'amber', desc: 'Verifikator merekomendasikan skema lain yang lebih sesuai dengan pengalaman Anda.' },
   awaiting_payment:  { label: 'Menunggu pembayaran', tone: 'green', desc: 'Pendaftaran siap dibayar. Selesaikan pembayaran sebelum batas waktu.' },
+  payment_review:    { label: 'Menunggu konfirmasi pembayaran', tone: 'blue', desc: 'Bukti transfer Anda sedang dicek tim EMKI. Kami akan mengabari melalui email setelah dikonfirmasi.' },
   paid:              { label: 'Lunas', tone: 'green', desc: 'Pembayaran diterima. Informasi Ujikom dikirim melalui email dan WhatsApp.' },
   expired:           { label: 'Lewat batas bayar', tone: 'red', desc: 'Batas pembayaran terlewat dan kursi dilepas. Hubungi admin untuk dibuka kembali.' },
   rejected:          { label: 'Ditolak', tone: 'red', desc: 'Pendaftaran tidak dapat dilanjutkan. Lihat catatan verifikator atau hubungi admin.' },

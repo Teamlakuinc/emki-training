@@ -3,6 +3,7 @@ import { Fragment, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { STATUS, jam, rupiah, tanggal, waktu, appliesTo } from '@/lib/format';
 import { fillTemplate, varsFor, waNumber } from '@/lib/templates';
+import StaffDocUpload from '@/components/admin/StaffDocUpload';
 import { decide, moveSession, extendPayment, revealSecret, saveAdminNotes, logNotification } from '@/app/admin/actions';
 
 const DEC: Record<string, string> = { approve: '✅ Disetujui', revision: '📄 Minta perbaikan', recommend: '🔁 Rekomendasi skema', reject: '⛔ Ditolak' };
@@ -84,7 +85,7 @@ export default function Detail(p: any) {
             <h2>Akun SIAPkerja</h2>
             <dl className="kv"><dt>Email</dt><dd>{a.siapkerja_email || '-'}</dd><dt>No. telepon</dt><dd>{a.siapkerja_phone || '-'}</dd>
               <dt>Password</dt><dd>{secret ? <span className="secret">{secret}</span> : p.hasSecret ? '•••••••• (tersimpan terenkripsi)' : 'Tidak tersedia / sudah dihapus otomatis'}</dd></dl>
-            {p.isAdmin && p.hasSecret && !secret && (
+            {p.hasSecret && !secret && (
               <div className="row" style={{ marginTop: 12 }}>
                 <input value={reason} onChange={e => setReason(e.target.value)} placeholder="Alasan membuka, mis. input ke SIAPkerja LSP" style={{ flex: 1, minWidth: 220, font: 'inherit', padding: '8px 10px', border: '1.5px solid #D5D8DC', borderRadius: 8 }} />
                 <button className="btn btn-outline btn-sm" disabled={pending} onClick={() => start(async () => {
@@ -100,16 +101,33 @@ export default function Detail(p: any) {
         <div>
           <div className="card">
             <h2>Dokumen</h2>
-            {p.reqDocs.filter((d: any) => appliesTo(d, a.scheme_id) || p.docs.some((x: any) => x.doc_type === d.code)).map((d: any) => { const cur = p.docs.find((x: any) => x.doc_type === d.code); return (
+            {p.reqDocs.filter((d: any) => d.filled_by !== 'staff' && (appliesTo(d, a.scheme_id) || p.docs.some((x: any) => x.doc_type === d.code))).map((d: any) => { const cur = p.docs.find((x: any) => x.doc_type === d.code); return (
               <div className="doc-link" key={d.code}><span><b>{d.name}</b><div className="muted small">{cur ? `${cur.file_name} · v${cur.version}` : d.is_required ? 'Belum diunggah' : 'Belum diunggah (opsional)'}</div></span>
                 {p.urls[d.code] && <a className="btn btn-outline btn-sm" href={p.urls[d.code]} target="_blank" rel="noopener">Buka</a>}</div>); })}
           </div>
+
+          <div className="card">
+            <h2>Diisi tim</h2>
+            {p.isSuper ? <StaffDocUpload appId={a.id} ownerId={a.user_id} docs={p.reqDocs.filter((d: any) => d.filled_by === 'staff')} current={p.docs} urls={p.urls} />
+              : p.reqDocs.filter((d: any) => d.filled_by === 'staff').map((d: any) => { const cur = p.docs.find((x: any) => x.doc_type === d.code); return (
+                <div className="doc-link" key={d.code}><span><b>{d.name}</b> {cur ? <span className="badge green">✓ Ada</span> : <span className="badge amber">Belum</span>}</span>
+                  {p.urls[d.code] && <a className="btn btn-outline btn-sm" href={p.urls[d.code]} target="_blank" rel="noopener">Buka</a>}</div>); })}
+          </div>
+
+          {p.proofs.length > 0 && <div className="card">
+            <h2>Bukti transfer</h2>
+            {p.proofs.map((pf: any) => <div className="doc-link" key={pf.id}><span><b>{rupiah(pf.amount)}</b> · {pf.sender_name} ({pf.sender_bank}) · {tanggal(pf.transfer_date)}
+              <div className="small">{pf.status === 'pending' ? <span className="badge amber">Menunggu konfirmasi</span> : pf.status === 'approved' ? <span className="badge green">Dikonfirmasi</span> : <span className="badge red">Ditolak: {pf.review_note}</span>}</div></span>
+              {p.proofUrls[pf.id] && <a className="btn btn-outline btn-sm" href={p.proofUrls[pf.id]} target="_blank" rel="noopener">Lihat</a>}</div>)}
+            {p.proofs.some((pf: any) => pf.status === 'pending') && <a className="btn btn-primary btn-sm" href="/admin/pembayaran">Proses di Konfirmasi Pembayaran</a>}
+          </div>}
 
           <div className="card">
             <h2>Harga & referral</h2>
             <dl className="kv" style={{ marginBottom: 16 }}>
               <dt>Harga dasar</dt><dd>{a.base_amount != null ? rupiah(a.base_amount) : '-'}</dd>
               <dt>Markup koordinator</dt><dd>{a.markup_amount ? rupiah(a.markup_amount) : '-'}</dd>
+              <dt>Komisi koordinator</dt><dd>{a.commission_amount ? rupiah(a.commission_amount) : '-'}</dd>
               <dt>Ditagihkan</dt><dd><b>{a.amount != null ? rupiah(a.amount) : 'Belum dikunci (belum dikirim)'}</b></dd>
               <dt>Koordinator</dt><dd>{a.coordinators ? `${a.coordinators.name} (${a.coordinators.code})` : '— daftar langsung —'}</dd>
             </dl>

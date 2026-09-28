@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import Wizard from '@/components/Wizard';
+import { paymentMethod } from '@/lib/admin';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Formulir Pendaftaran' };
@@ -19,8 +20,13 @@ export default async function Page({ params }: { params: { id: string } }) {
   ]);
   const { data: sessions } = await supabase.rpc('available_sessions', { p_scheme_slug: scheme!.slug, p_coordinator: app.coordinator_id });
   const [{ data: reqDocs }, { data: fields }] = await Promise.all([
-    supabase.from('required_documents').select('*').eq('is_active', true).order('sort_order'),
+    supabase.from('required_documents').select('*').eq('is_active', true).eq('filled_by', 'participant').order('sort_order'),
     supabase.from('custom_fields').select('*').eq('is_active', true).order('sort_order'),
+  ]);
+  const method = await paymentMethod();
+  const [{ data: banks }, { data: proofs }] = await Promise.all([
+    supabase.from('bank_accounts').select('bank,account_number,account_name').eq('is_active', true).order('sort_order'),
+    supabase.from('payment_proofs').select('status,review_note,created_at,sender_name,sender_bank,transfer_date').eq('application_id', app.id).order('created_at', { ascending: false }).limit(3),
   ]);
   const applies = (r: any) => !r.scheme_ids || r.scheme_ids.length === 0 || r.scheme_ids.includes(app.scheme_id);
 
@@ -42,7 +48,7 @@ export default async function Page({ params }: { params: { id: string } }) {
   return (
     <Wizard app={app} scheme={scheme} userId={user!.id} sessions={sessions || []} current={current}
       docs={docs || []} hasSecret={!!hasSecret} logs={logs || []} recommended={recommended} recSessions={recSessions}
-      clientKey={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY || ''} prod={process.env.MIDTRANS_IS_PRODUCTION === 'true'}
+      method={method} banks={banks || []} proofs={proofs || []} clientKey={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY || ''} prod={process.env.MIDTRANS_IS_PRODUCTION === 'true'}
       reqDocs={(reqDocs || []).filter(applies)} fields={(fields || []).filter(applies)} />
   );
 }
