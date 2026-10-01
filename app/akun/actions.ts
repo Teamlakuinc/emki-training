@@ -7,7 +7,7 @@ import { encryptSecret } from '@/lib/crypto';
 import { createSnap, getStatus } from '@/lib/midtrans';
 import { applyMidtrans } from '@/lib/payments';
 import { sendAppEmail, readyToPayKey } from '@/lib/email';
-import { refCoordinatorId } from '@/lib/ref';
+import { refCoordinatorId, claimFromCookie } from '@/lib/ref';
 
 type Res = { ok: boolean; error?: string };
 const clean = (v: unknown) => (typeof v === 'string' ? v.trim() : v) || null;
@@ -185,5 +185,17 @@ export async function submitProof(id: string, d: { path: string; name: string; m
   revalidatePath(`/akun/pendaftaran/${id}`); revalidatePath('/akun');
   if (error) return { ok: false, error: niceErr(error.message) };
   await sendAppEmail(id, 'email_bukti_diterima');
+  return { ok: true };
+}
+
+/* ---------- kode referral manual ---------- */
+export async function applyReferral(id: string, code: string): Promise<Res> {
+  const { supabase } = await me();
+  const c = (code || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+  if (c.length < 2) return { ok: false, error: 'Masukkan kode referral.' };
+  const { data, error } = await supabase.rpc('claim_referral', { p_code: c });
+  if (error) return { ok: false, error: niceErr(error.message) };
+  if (!data) return { ok: false, error: 'Kode referral tidak ditemukan atau tidak aktif.' };
+  revalidatePath(`/akun/pendaftaran/${id}`);
   return { ok: true };
 }

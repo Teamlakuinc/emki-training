@@ -11,7 +11,7 @@ export default async function Page({ params }: { params: { id: string } }) {
   const [{ data: docs }, { data: logs }, { data: schemes }, { data: templates }, { data: hasSecret }, { data: notifs }] = await Promise.all([
     supabase.from('application_documents').select('doc_type,storage_path,file_name,version,created_at').eq('application_id', a.id).eq('is_current', true),
     supabase.from('verification_logs').select('decision,note,created_at,profiles(full_name,email)').eq('application_id', a.id).order('created_at', { ascending: false }),
-    supabase.from('schemes').select('id,name,price').eq('is_active', true).order('level_order'),
+    supabase.from('schemes').select('id,name,price').order('level_order'),
     supabase.from('message_templates').select('key,title,body').eq('channel', 'whatsapp').eq('is_active', true).order('sort_order'),
     supabase.rpc('has_siapkerja_secret', { p_application: a.id }),
     supabase.from('notification_logs').select('template_key,created_at,profiles(full_name,email)').eq('application_id', a.id).order('created_at', { ascending: false }).limit(10),
@@ -27,11 +27,15 @@ export default async function Page({ params }: { params: { id: string } }) {
   const { data: proofs } = await supabase.from('payment_proofs').select('id,status,amount,sender_name,sender_bank,transfer_date,review_note,created_at,storage_path').eq('application_id', a.id).order('created_at', { ascending: false });
   const proofUrls: Record<string, string> = {};
   for (const pf of proofs || []) { const { data } = await supabase.storage.from('application-documents').createSignedUrl(pf.storage_path, 600); if (data) proofUrls[pf.id] = data.signedUrl; }
+  const [{ data: coordList }, { data: changeLogs }] = await Promise.all([
+    supabase.from('coordinators').select('id,name,code').order('name'),
+    supabase.from('admin_change_logs').select('id,action,detail,created_at,profiles(full_name,email)').eq('application_id', a.id).order('created_at', { ascending: false }).limit(30),
+  ]);
   const urls: Record<string, string> = {};
   for (const d of docs || []) {
     const { data } = await supabase.storage.from('application-documents').createSignedUrl(d.storage_path, 600);
     if (data) urls[d.doc_type] = data.signedUrl;
   }
   return <Detail a={a} docs={docs || []} urls={urls} logs={logs || []} notifs={notifs || []} schemes={schemes || []} templates={templates || []}
-    sessions={sess || []} reqDocs={reqDocs || []} fields={fields || []} hasSecret={!!hasSecret} isAdmin={isAdminRole(role)} isSuper={role === 'super_admin'} proofs={proofs || []} proofUrls={proofUrls} site={process.env.NEXT_PUBLIC_SITE_URL || ''} />;
+    sessions={sess || []} reqDocs={reqDocs || []} fields={fields || []} hasSecret={!!hasSecret} isAdmin={isAdminRole(role)} isSuper={role === 'super_admin'} proofs={proofs || []} proofUrls={proofUrls} coordList={coordList || []} changeLogs={changeLogs || []} site={process.env.NEXT_PUBLIC_SITE_URL || ''} />;
 }

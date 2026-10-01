@@ -33,7 +33,7 @@ export default function ApplicantTable({ rows, templates, site, showSchedule = t
       <div className="tbl-wrap"><table className="tbl">
         <thead><tr>
           <th><input type="checkbox" aria-label="Pilih semua" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(rows.map(r => r.id)))} /></th>
-          <th>Nama</th><th>Skema</th><th>Status</th>{showSchedule && <th>Jadwal & sesi</th>}<th>Pengalaman</th><th>Sisfo</th><th>No. Reg</th><th>Kirim WA</th>
+          <th>Nama</th><th>Skema</th><th>Status</th>{showSchedule && <th>Jadwal & sesi</th>}<th>Koordinator</th><th>Pengalaman</th><th>Sisfo</th><th>No. Reg</th><th>Kirim WA</th>
         </tr></thead>
         <tbody>
           {rows.map(r => {
@@ -42,9 +42,10 @@ export default function ApplicantTable({ rows, templates, site, showSchedule = t
               <tr key={r.id}>
                 <td><input type="checkbox" aria-label={`Pilih ${r.full_name}`} checked={sel.has(r.id)} onChange={() => toggle(r.id)} /></td>
                 <td><Link href={`/admin/pendaftar/${r.id}`}>{r.full_name || '(belum diisi)'}</Link><div className="muted small">{r.phone}</div></td>
-                <td>{r.schemes?.name}<div className="muted small">{rupiah(r.amount ?? r.schemes?.price)}</div></td>
+                <td>{r.schemes?.name}<div className="muted small">{r.amount != null ? rupiah(r.amount) : 'harga belum dikunci'}</div></td>
                 <td><span className={`badge ${st.tone}`}>{st.label}</span></td>
                 {showSchedule && <td className="small">{j ? <>{tanggal(j.exam_date)}<div className="muted">{s.name} {jam(s.start_time)}–{jam(s.end_time)} · {j.tuk}</div></> : '-'}</td>}
+                <td className="small">{r.coordinators?.code || <span className="muted">—</span>}</td>
                 <td>{r.experience_years != null ? `${r.experience_years} th` : '-'}</td>
                 <td>{(r.application_documents || []).some((d: any) => d.doc_type === 'screenshot_sisfo' && d.is_current) ? <span className="badge green">✓</span> : <span className="badge grey">belum</span>}</td>
                 <td className="small">{r.reg_code || '-'}</td>
@@ -59,7 +60,7 @@ export default function ApplicantTable({ rows, templates, site, showSchedule = t
               </tr>
             );
           })}
-          {!rows.length && <tr><td colSpan={9} className="muted">Tidak ada data.</td></tr>}
+          {!rows.length && <tr><td colSpan={10} className="muted">Tidak ada data.</td></tr>}
         </tbody>
       </table></div>
     </>

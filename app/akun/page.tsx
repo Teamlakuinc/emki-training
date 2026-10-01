@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { rupiah, STATUS, waktu } from '@/lib/format';
+import { claimFromCookie } from '@/lib/ref';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Akun Saya' };
 
 export default async function Page({ searchParams }: { searchParams: { error?: string } }) {
+  await claimFromCookie();
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const { data: apps } = await supabase.from('applications')

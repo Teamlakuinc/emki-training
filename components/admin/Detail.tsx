@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { STATUS, jam, rupiah, tanggal, waktu, appliesTo } from '@/lib/format';
 import { fillTemplate, varsFor, waNumber } from '@/lib/templates';
 import StaffDocUpload from '@/components/admin/StaffDocUpload';
+import ManageApplication from '@/components/admin/ManageApplication';
 import { decide, moveSession, extendPayment, revealSecret, saveAdminNotes, logNotification } from '@/app/admin/actions';
 
 const DEC: Record<string, string> = { approve: '✅ Disetujui', revision: '📄 Minta perbaikan', recommend: '🔁 Rekomendasi skema', reject: '⛔ Ditolak' };
@@ -42,7 +43,7 @@ export default function Detail(p: any) {
         <div>
           <a href="/admin/pendaftar" className="small">← Daftar pendaftar</a>
           <h1 style={{ margin: '6px 0 4px' }}>{a.full_name || '(nama belum diisi)'}</h1>
-          <div className="row small"><span className={`badge ${st.tone}`}>{st.label}</span><span>{a.schemes?.name}</span>{a.orig && <span className="muted">(awal: {a.orig.name})</span>}<span className="muted">{a.reg_code}</span><span className="muted">{rupiah(a.amount ?? a.schemes?.price)}</span></div>
+          <div className="row small"><span className={`badge ${st.tone}`}>{st.label}</span><span>{a.schemes?.name}</span>{a.orig && <span className="muted">(awal: {a.orig.name})</span>}<span className="muted">{a.reg_code}</span><span className="muted">{a.amount != null ? rupiah(a.amount) : 'harga belum dikunci'}</span>{a.coordinators && <span className="badge blue">via {a.coordinators.code}</span>}</div>
         </div>
         <a className="btn btn-outline btn-sm" href={`/admin/export?ids=${a.id}`}>⬇ Download peserta ini</a>
       </div>
@@ -158,6 +159,8 @@ export default function Detail(p: any) {
             <div className="field"><label htmlFor="an">Catatan admin (tidak terlihat peserta)</label><textarea id="an" rows={3} value={notes} onChange={e => setNotes(e.target.value)} /></div>
             <button className="btn btn-outline btn-sm" disabled={pending} onClick={() => run(() => saveAdminNotes(a.id, notes, result), 'Tersimpan.')}>Simpan</button>
           </div>}
+
+          {p.isAdmin && <ManageApplication a={a} coordinators={p.coordList} schemes={p.schemes} logs={p.changeLogs} isSuper={p.isSuper} />}
 
           {p.logs.length > 0 && <div className="card"><h2>Riwayat verifikasi</h2>
             {p.logs.map((l: any, i: number) => <p key={i} className="small" style={{ margin: '0 0 8px' }}><b>{DEC[l.decision]}</b> · {waktu(l.created_at)} · {l.profiles?.full_name || l.profiles?.email}<br />{l.note}</p>)}</div>}

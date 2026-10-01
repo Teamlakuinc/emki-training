@@ -328,3 +328,79 @@ export async function recordStaffDocument(appId: string, doc: { type: string; pa
   revalidatePath(`/admin/pendaftar/${appId}`); revalidatePath(`/koordinator/peserta/${appId}`);
   return error ? err(error.message) : { ok: true };
 }
+
+/* ======================= KELOLA PESERTA (Super Admin) ======================= */
+async function logChange(supabase: any, userId: string, appId: string, action: string, detail: any) {
+  const { data: a } = await supabase.from('applications').select('reg_code,full_name').eq('id', appId).maybeSingle();
+  await supabase.from('admin_change_logs').insert({ application_id: appId, reg_code: a?.reg_code, full_name: a?.full_name, actor_id: userId, action, detail });
+}
+const done = (id: string) => { revalidatePath(`/admin/pendaftar/${id}`); revalidatePath('/admin/pendaftar'); revalidatePath('/admin'); };
+
+export async function adminSetCoordinator(id: string, coordinatorId: string | null, reprice: boolean): Promise<Res> {
+  const { supabase } = await requireStaff('admin');
+  const { error } = await supabase.rpc('admin_set_coordinator', { p_app: id, p_coordinator: coordinatorId || null, p_reprice: reprice });
+  done(id); return error ? err(error.message) : { ok: true };
+}
+export async function adminReprice(id: string): Promise<Res> {
+  const { supabase } = await requireStaff('admin');
+  const { error } = await supabase.rpc('admin_reprice', { p_app: id });
+  done(id); return error ? err(error.message) : { ok: true };
+}
+export async function adminSetAmount(id: string, amount: number, reason: string): Promise<Res> {
+  const { supabase, user } = await requireStaff('admin');
+  if (!(amount >= 0)) return err('Nominal tidak valid.');
+  if (!reason?.trim()) return err('Tulis alasan perubahan harga.');
+  const { data: a } = await supabase.from('applications').select('amount,base_amount').eq('id', id).single();
+  const { error } = await supabase.from('applications').update({ amount, commission_amount: null }).eq('id', id);
+  if (error) return err(error.message);
+  await logChange(supabase, user.id, id, 'ubah_harga_manual', { dari: a?.amount, ke: amount, alasan: reason });
+  done(id); return { ok: true };
+}
+export async function adminSetStatus(id: string, status: string, reason: string): Promise<Res> {
+  const { supabase, user } = await requireStaff('admin');
+  const allowed = ['draft', 'submitted', 'revision_required', 'awaiting_payment', 'payment_review', 'paid', 'expired', 'rejected', 'cancelled'];
+  if (!allowed.includes(status)) return err('Status tidak valid.');
+  if (!reason?.trim()) return err('Tulis alasan perubahan status.');
+  const { data: a } = await supabase.from('applications').select('status,amount,scheme_id,session_id,coordinator_id,reg_code').eq('id', id).single();
+  const patch: any = { status };
+  if (status === 'paid') patch.paid_at = new Date().toISOString();
+  if (status === 'awaiting_payment') patch.payment_due_at = new Date(Date.now() + 72 * 3600 * 1000).toISOString();
+  if (status !== 'draft' && a?.amount == null && a?.session_id) {
+    const { data: pr } = await supabase.rpc('price_for', { p_scheme: a.scheme_id, p_session: a.session_id, p_coordinator: a.coordinator_id });
+    const r: any = Array.isArray(pr) ? pr[0] : pr;
+    if (r) Object.assign(patch, { amount: r.total, base_amount: r.base, markup_amount: r.markup });
+  }
+  const { error } = await supabase.from('applications').update(patch).eq('id', id);
+  if (error) return err(error.message);
+  await logChange(supabase, user.id, id, 'ubah_status_manual', { dari: a?.status, ke: status, alasan: reason });
+  done(id); return { ok: true };
+}
+export async function adminSetScheme(id: string, schemeId: string, reprice: boolean): Promise<Res> {
+  const { supabase, user } = await requireStaff('admin');
+  const { data: a } = await supabase.from('applications').select('scheme_id, schemes!applications_scheme_id_fkey(name)').eq('id', id).single();
+  const { data: sc } = await supabase.from('schemes').select('name').eq('id', schemeId).single();
+  const { error } = await supabase.from('applications').update({ scheme_id: schemeId }).eq('id', id);
+  if (error) return err(error.message.includes('applications_one_active') ? 'Peserta sudah punya pendaftaran aktif lain di skema itu.' : error.message);
+  await logChange(supabase, user.id, id, 'ubah_skema', { dari: (a as any)?.schemes?.name, ke: sc?.name });
+  if (reprice) { const { error: e2 } = await supabase.rpc('admin_reprice', { p_app: id }); if (e2) return err('Skema diubah, tapi harga gagal dihitung ulang: ' + e2.message); }
+  done(id); return { ok: true };
+}
+export async function adminUpdateData(id: string, d: Record<string, string>): Promise<Res> {
+  const { supabase, user } = await requireStaff('admin');
+  const keys = ['full_name', 'nik', 'birth_place', 'birth_date', 'gender', 'address_ktp', 'city', 'province', 'phone', 'email', 'education', 'occupation', 'workplace', 'experience_years', 'siapkerja_email', 'siapkerja_phone'];
+  const patch: any = {};
+  for (const k of keys) if (k in d) patch[k] = (d[k] ?? '').toString().trim() || null;
+  if (patch.nik && !/^[0-9]{16}$/.test(patch.nik)) return err('NIK harus 16 digit angka.');
+  if (patch.gender && !['L', 'P'].includes(patch.gender)) return err('Jenis kelamin: L atau P.');
+  if (patch.experience_years != null) patch.experience_years = Number(String(patch.experience_years).replace(',', '.'));
+  const { error } = await supabase.from('applications').update(patch).eq('id', id);
+  if (error) return err(error.message);
+  await logChange(supabase, user.id, id, 'ubah_data_peserta', { kolom: Object.keys(patch) });
+  done(id); return { ok: true };
+}
+export async function adminDeleteApplication(id: string, confirmText: string): Promise<Res> {
+  const { supabase } = await requireStaff('super');
+  const { error } = await supabase.rpc('admin_delete_application', { p_app: id, p_confirm: confirmText });
+  revalidatePath('/admin/pendaftar'); revalidatePath('/admin');
+  return error ? err(error.message) : { ok: true };
+}

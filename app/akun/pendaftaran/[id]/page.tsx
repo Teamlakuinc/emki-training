@@ -2,11 +2,13 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import Wizard from '@/components/Wizard';
 import { paymentMethod } from '@/lib/admin';
+import { claimFromCookie } from '@/lib/ref';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Formulir Pendaftaran' };
 
 export default async function Page({ params }: { params: { id: string } }) {
+  await claimFromCookie();
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const { data: app } = await supabase.from('applications').select('*').eq('id', params.id).maybeSingle();

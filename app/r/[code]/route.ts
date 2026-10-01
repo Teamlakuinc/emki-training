@@ -9,6 +9,11 @@ export async function GET(request: Request, { params }: { params: { code: string
   const next = new URL(request.url).searchParams.get('ke');
   const dest = next && /^\/daftar\/[a-z0-9-]+$/.test(next) ? next : '/';
   const res = NextResponse.redirect(`${site}${dest}`);
-  if (data) res.cookies.set(REF_COOKIE, code, { maxAge: 60 * 60 * 24 * 30, httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
+  if (data) {
+    const sb = createClient();
+    const { data: { user } } = await sb.auth.getUser();
+    if (user) await sb.rpc('claim_referral', { p_code: code });
+  }
+  if (data) res.cookies.set(REF_COOKIE, code, { maxAge: 60 * 60 * 24 * 90, httpOnly: true, secure: true, sameSite: 'lax', path: '/' });
   return res;
 }

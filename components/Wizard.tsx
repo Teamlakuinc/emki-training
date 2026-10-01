@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { ACCEPT, PENDIDIKAN, PROVINSI, STATUS, jam, rupiah, tanggal, waktu, waLink } from '@/lib/format';
 import {
   saveSession, savePersonal, saveSiapkerja, recordDocument, getDocUrl, saveConsent,
-  submitApplication, acceptRecommendation, cancelApplication, createPayment, checkPayment, submitProof,
+  submitApplication, acceptRecommendation, cancelApplication, createPayment, checkPayment, submitProof, applyReferral,
 } from '@/app/akun/actions';
 
 type Props = { app: any; scheme: any; userId: string; sessions: any[]; current: any; docs: any[]; hasSecret: boolean; logs: any[]; recommended: any; recSessions: any[]; reqDocs: any[]; fields: any[]; clientKey: string; prod: boolean; method: string; banks: any[]; proofs: any[] };
@@ -56,6 +56,7 @@ export default function Wizard(p: Props) {
 
       {editable && (
         <>
+          {!app.coordinator_id && <ReferralBox id={app.id} />}
           <ol className="steps" aria-label="Langkah pendaftaran">
             {STEPS.map((s, i) => (
               <li key={s} className={i === step ? 'active' : done[i] ? 'done' : ''}>
@@ -138,6 +139,21 @@ function StatusPanel(p: StepProps) {
             onClick={() => { if (confirm('Batalkan pendaftaran ini? Kursi Ujikom Anda akan dilepas.')) p.run(() => cancelApplication(app.id), 'Pendaftaran dibatalkan.'); }}>Batalkan pendaftaran</button>
         </p>
       )}
+    </div>
+  );
+}
+
+/* ---------------- kode referral (opsional) ---------------- */
+function ReferralBox({ id }: { id: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false); const [code, setCode] = useState(''); const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  if (!open) return <p className="small" style={{ margin: '0 0 12px' }}>Mendaftar melalui koordinator? <button type="button" onClick={() => setOpen(true)} style={{ background: 'none', border: 0, color: 'var(--blue)', cursor: 'pointer', padding: 0, font: 'inherit', textDecoration: 'underline' }}>Masukkan kode referral</button></p>;
+  return (
+    <div className="card" style={{ marginBottom: 14, padding: 16 }}>
+      <div className="row"><input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="Kode referral, mis. SOFYAN" style={{ flex: 1, minWidth: 180, font: 'inherit', padding: '9px 12px', border: '1.5px solid #D5D8DC', borderRadius: 8, textTransform: 'uppercase' }} />
+        <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={async () => { setErr(''); setBusy(true); const r = await applyReferral(id, code); setBusy(false); if (!r.ok) return setErr(r.error!); router.refresh(); }}>Gunakan kode</button></div>
+      {err && <div className="alert alert-err" style={{ margin: '10px 0 0' }}>{err}</div>}
+      <p className="muted small" style={{ margin: '8px 0 0' }}>Kode didapat dari koordinator yang mengajak Anda. Harga akan menyesuaikan.</p>
     </div>
   );
 }
