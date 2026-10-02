@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ACCEPT, PENDIDIKAN, PROVINSI, STATUS, jam, rupiah, tanggal, waktu, waLink } from '@/lib/format';
@@ -20,7 +20,7 @@ export default function Wizard(p: Props) {
   const sp = useSearchParams();
   const [step, setStep] = useState(sp.get('langkah') === '2' && p.app.session_id ? 1 : 0);
   const [msg, setMsg] = useState<{ t: 'ok' | 'err'; m: string } | null>(null);
-  const [pending, start] = useTransition();
+  const [pending, setPending] = useState(false);
 
   const done = useMemo(() => [
     !!app.session_id,
@@ -31,18 +31,23 @@ export default function Wizard(p: Props) {
     !!app.consent_at,
   ], [app, p.docs, p.hasSecret, p.reqDocs, p.fields]);
 
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, okMsg: string, next?: boolean) =>
-    start(async () => {
-      setMsg(null);
+  const run = async (fn: () => Promise<{ ok: boolean; error?: string }>, okMsg: string, next?: boolean) => {
+    if (pending) return;
+    setMsg(null); setPending(true);
+    try {
       const r = await fn();
       if (!r.ok) { setMsg({ t: 'err', m: r.error || 'Gagal menyimpan.' }); return; }
       setMsg({ t: 'ok', m: okMsg });
-      router.refresh();
       if (next) { setStep(s => Math.min(s + 1, STEPS.length - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-    });
+      router.refresh();
+    } catch {
+      setMsg({ t: 'err', m: 'Koneksi terputus. Periksa internet Anda lalu coba lagi.' });
+    } finally { setPending(false); }
+  };
 
   return (
     <>
+      {pending && <div className="topbar-loading" aria-hidden="true" />}
       <div className="row between" style={{ marginBottom: 8 }}>
         <div>
           <span className="eyebrow">Sertifikasi BNSP · {scheme.name}</span>
@@ -299,7 +304,8 @@ function StepSession(p: StepProps) {
   return (
     <>
       <h2>Pilih tanggal & sesi Ujikom</h2>
-      <p className="muted">Pilih satu sesi. Sesi yang penuh tidak dapat dipilih.</p>
+      <p className="muted">Ketuk salah satu sesi — pilihan langsung tersimpan dan Anda lanjut ke langkah berikutnya. Sesi yang penuh tidak dapat dipilih.</p>
+      {p.pending && <div className="alert alert-info">⏳ Menyimpan pilihan jadwal…</div>}
       {currentMissing && <div className="alert alert-warn">Sesi yang Anda pilih sebelumnya ({p.current.name}, {tanggal(p.current.exam_schedules?.exam_date)}) sudah ditutup. Silakan pilih sesi lain.</div>}
       {groups.length === 0 && <div className="alert alert-info">Belum ada jadwal Ujikom yang dibuka untuk skema ini. Anda tetap bisa melengkapi langkah lainnya; kami akan mengabari saat jadwal dibuka.</div>}
       {groups.map(g => (
@@ -310,7 +316,8 @@ function StepSession(p: StepProps) {
             const full = s.seats_left <= 0 && s.session_id !== p.app.session_id;
             return (
               <label key={s.session_id} className={`sess ${sel === s.session_id ? 'sel' : ''} ${full ? 'full' : ''}`}>
-                <span><input type="radio" name="sess" disabled={full} checked={sel === s.session_id} onChange={() => setSel(s.session_id)} />
+                <span><input type="radio" name="sess" disabled={full || p.pending} checked={sel === s.session_id}
+                  onChange={() => { setSel(s.session_id); p.run(() => saveSession(p.app.id, s.session_id), `Jadwal tersimpan: ${s.session_name}, ${tanggal(s.exam_date)}.`, true); }} />
                   <b>{s.session_name}</b> · {jam(s.start_time)}–{jam(s.end_time)} WIB</span>
                 <span className="row" style={{ gap: 8 }}><b className="small">{rupiah(s.price)}</b><span className={`badge ${full ? 'red' : s.seats_left <= 3 ? 'amber' : 'green'}`}>{full ? 'Penuh' : `Sisa ${s.seats_left} kursi`}</span></span>
               </label>
@@ -318,7 +325,7 @@ function StepSession(p: StepProps) {
           })}
         </div>
       ))}
-      <button className="btn btn-primary" disabled={!sel || p.pending} onClick={() => p.run(() => saveSession(p.app.id, sel), 'Jadwal tersimpan.', true)}>Simpan & lanjut</button>
+      {sel && <button className="btn btn-primary" disabled={p.pending} onClick={() => p.run(() => saveSession(p.app.id, sel), 'Jadwal tersimpan.', true)}>{p.pending ? 'Menyimpan…' : 'Lanjut'}</button>}
     </>
   );
 }

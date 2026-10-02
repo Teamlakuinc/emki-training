@@ -10,7 +10,7 @@ export async function refCoordinatorId(): Promise<string | null> {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (user) {
-    await claimFromCookie();
+    await claimFromCookie(user);
     const { data: p } = await supabase.from('profiles').select('coordinator_id').eq('id', user.id).maybeSingle();
     if (p?.coordinator_id) return p.coordinator_id;
   }
@@ -21,11 +21,11 @@ export async function refCoordinatorId(): Promise<string | null> {
 }
 
 /** Jika peserta login dan browser membawa kode referral, kunci ke akunnya (koordinator pertama yang menang). */
-export async function claimFromCookie() {
+export async function claimFromCookie(knownUser?: { id: string } | null) {
   const code = refCode();
   if (!code) return;
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = knownUser !== undefined ? knownUser : (await supabase.auth.getUser()).data.user;
   if (!user) return;
   await supabase.rpc('claim_referral', { p_code: code });
 }
