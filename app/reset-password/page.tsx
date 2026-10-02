@@ -15,7 +15,7 @@ export default function Page() {
     const supabase = createClient();
     const { error } = await supabase.auth.updateUser({ password: pw });
     setBusy(false);
-    if (error) return setErr('Link sudah kedaluwarsa atau password ditolak. Minta link reset baru.');
+    if (error) return setErr(/session|auth/i.test(error.message) ? 'Sesi reset tidak ditemukan. Buka kembali link dari email, lalu klik Lanjutkan.' : 'Password ditolak (terlalu lemah atau pernah bocor). Gunakan kombinasi lain.');
     await supabase.auth.signOut();
     router.replace('/masuk?reset=1');
   }

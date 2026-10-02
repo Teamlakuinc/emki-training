@@ -35,6 +35,7 @@ function MasukForm() {
       <p className="muted">Lanjutkan pendaftaran sertifikasi atau cek status pendaftaran.</p>
       {params.get('confirmed') && <div className="alert alert-ok">Email berhasil dikonfirmasi. Silakan masuk.</div>}
       {params.get('reset') && <div className="alert alert-ok">Password berhasil diganti. Silakan masuk.</div>}
+      {params.get('error') === 'link' && <div className="alert alert-warn">Link dari email sudah tidak berlaku. Silakan masuk, atau gunakan <Link href="/lupa-password">Lupa password</Link> untuk meminta link baru.</div>}
       {err && <div className="alert alert-err">{err}</div>}
       <form onSubmit={onSubmit}>
         <div className="field"><label htmlFor="email">Email</label><input id="email" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} /></div>
