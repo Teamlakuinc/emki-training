@@ -242,7 +242,11 @@ export async function saveCoordinator(f: FormData): Promise<Res> {
   if (rows.some(r => isNaN(r.value) || r.value < 0)) return err('Nilai markup tidak valid.');
   await supabase.from('coordinator_markups').delete().eq('coordinator_id', cid);
   if (rows.length) { const { error } = await supabase.from('coordinator_markups').insert(rows); if (error) return err(error.message); }
-  revalidatePath('/admin/koordinator');
+  if (f.get('apply_unpaid') === 'on') {
+    const { data: mm } = await supabase.rpc('admin_price_mismatches');
+    for (const m of (mm as any[]) || []) if (m.koordinator === code) await supabase.rpc('admin_reprice', { p_app: m.application_id });
+  }
+  revalidatePath('/admin/koordinator'); revalidatePath('/admin');
   return { ok: true, data: cid };
 }
 
@@ -402,5 +406,18 @@ export async function adminDeleteApplication(id: string, confirmText: string): P
   const { supabase } = await requireStaff('super');
   const { error } = await supabase.rpc('admin_delete_application', { p_app: id, p_confirm: confirmText });
   revalidatePath('/admin/pendaftar'); revalidatePath('/admin');
+  return error ? err(error.message) : { ok: true };
+}
+
+export async function repriceAll(): Promise<Res> {
+  const { supabase } = await requireStaff('admin');
+  const { data, error } = await supabase.rpc('admin_reprice_all');
+  revalidatePath('/admin'); revalidatePath('/admin/cek-harga');
+  return error ? err(error.message) : { ok: true, data };
+}
+export async function repriceOne(id: string): Promise<Res> {
+  const { supabase } = await requireStaff('admin');
+  const { error } = await supabase.rpc('admin_reprice', { p_app: id });
+  revalidatePath('/admin'); revalidatePath('/admin/cek-harga');
   return error ? err(error.message) : { ok: true };
 }

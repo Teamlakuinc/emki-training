@@ -7,13 +7,15 @@ import { createClient } from '@/lib/supabase/client';
 function DaftarForm({ refCode }: { refCode: string | null }) {
   const params = useSearchParams();
   const next = params.get('next') || '/akun';
-  const [f, setF] = useState({ name: '', email: '', pw: '', pw2: '' });
+  const [f, setF] = useState({ name: '', email: '', wa: '', pw: '', pw2: '' });
   const [err, setErr] = useState('');
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault(); setErr('');
+    const wa = f.wa.replace(/[^0-9+]/g, '');
+    if (!/^(\+?62|0)8[0-9]{7,12}$/.test(wa)) return setErr('Nomor WhatsApp tidak valid. Contoh: 081234567890');
     if (f.pw.length < 8) return setErr('Password minimal 8 karakter.');
     if (f.pw !== f.pw2) return setErr('Konfirmasi password tidak sama.');
     setBusy(true);
@@ -21,7 +23,7 @@ function DaftarForm({ refCode }: { refCode: string | null }) {
     const site = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
     const { error } = await supabase.auth.signUp({
       email: f.email.trim(), password: f.pw,
-      options: { data: { full_name: f.name.trim(), ...(refCode ? { ref: refCode } : {}) }, emailRedirectTo: `${site}/auth/callback?next=${encodeURIComponent(next)}` },
+      options: { data: { full_name: f.name.trim(), phone: f.wa.replace(/[^0-9+]/g, ''), ...(refCode ? { ref: refCode } : {}) }, emailRedirectTo: `${site}/auth/callback?next=${encodeURIComponent(next)}` },
     });
     setBusy(false);
     if (error) {
@@ -49,6 +51,7 @@ function DaftarForm({ refCode }: { refCode: string | null }) {
       <form onSubmit={onSubmit}>
         <div className="field"><label htmlFor="n">Nama lengkap</label><input id="n" required autoComplete="name" value={f.name} onChange={e => setF({ ...f, name: e.target.value })} /></div>
         <div className="field"><label htmlFor="e">Email aktif</label><input id="e" type="email" required autoComplete="email" value={f.email} onChange={e => setF({ ...f, email: e.target.value })} /><div className="hint">Semua informasi sertifikasi dikirim ke email ini.</div></div>
+        <div className="field"><label htmlFor="w">Nomor WhatsApp aktif</label><input id="w" type="tel" inputMode="tel" required autoComplete="tel" placeholder="08xxxxxxxxxx" value={f.wa} onChange={e => setF({ ...f, wa: e.target.value })} /><div className="hint">Untuk info jadwal Ujikom dan bantuan pendaftaran.</div></div>
         <div className="field"><label htmlFor="p">Password</label><input id="p" type="password" required autoComplete="new-password" minLength={8} value={f.pw} onChange={e => setF({ ...f, pw: e.target.value })} /><div className="hint">Minimal 8 karakter.</div></div>
         <div className="field"><label htmlFor="p2">Ulangi password</label><input id="p2" type="password" required autoComplete="new-password" value={f.pw2} onChange={e => setF({ ...f, pw2: e.target.value })} /></div>
         <button className="btn btn-primary btn-block" disabled={busy}>{busy ? 'Memproses…' : 'Buat Akun'}</button>

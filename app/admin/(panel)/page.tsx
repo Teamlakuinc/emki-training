@@ -6,6 +6,8 @@ export default async function Dashboard({ searchParams }: { searchParams: { akse
   const { supabase } = await requireStaff();
   const { data: s } = await supabase.rpc('admin_dashboard_stats');
   const st: any = s || {};
+  const { data: mism } = await supabase.rpc('admin_price_mismatches');
+  const nm = ((mism as any[]) || []).length;
   const { count: review } = await supabase.from('applications').select('id', { count: 'exact', head: true }).eq('status', 'payment_review');
   const { data: sched } = await supabase.from('exam_schedules').select('id,title,exam_date,tuk,status').in('status', ['open', 'closed']).order('exam_date').limit(6);
   const card = (href: string, n: any, label: string, hot = false) =>
@@ -14,6 +16,7 @@ export default async function Dashboard({ searchParams }: { searchParams: { akse
     <>
       {searchParams.akses && <div className="alert alert-warn">Halaman tersebut hanya untuk Admin.</div>}
       <h1>Dashboard</h1>
+      {nm > 0 && <div className="alert alert-warn">⚠️ <b>{nm} tagihan peserta</b> tidak sesuai harga yang berlaku (skema / jadwal / koordinator berubah setelah pendaftaran dikirim). <Link href="/admin/cek-harga"><b>Cek & sesuaikan →</b></Link></div>}
       <div className="stats">
         {card('/admin/pendaftar?status=submitted', st.menunggu_verifikasi, 'Menunggu verifikasi', true)}
         {review ? card('/admin/pembayaran', review, 'Bukti transfer lama menunggu konfirmasi', true) : null}
