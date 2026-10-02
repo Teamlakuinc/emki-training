@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { encryptSecret } from '@/lib/crypto';
 import { createSnap, getStatus } from '@/lib/midtrans';
-import { applyMidtrans } from '@/lib/payments';
+import { applyMidtrans, applyDoku } from '@/lib/payments';
+import { createDokuCheckout, getDokuStatus, dokuReady } from '@/lib/doku';
 import { sendAppEmail, readyToPayKey } from '@/lib/email';
 import { refCoordinatorId, claimFromCookie } from '@/lib/ref';
 
@@ -168,8 +169,13 @@ export async function checkPayment(id: string): Promise<Res & { status?: string 
   const { data: pays } = await createAdminClient().from('payments').select('order_id').eq('application_id', id).order('created_at', { ascending: false }).limit(3);
   let last: string | undefined;
   for (const p of pays || []) {
-    const s = await getStatus(p.order_id);
-    if (s?.transaction_status) { const r = await applyMidtrans(s); last = r.status as string; if (last === 'paid') break; }
+    if (/-D\d+$/.test(p.order_id)) {
+      const s = await getDokuStatus(p.order_id);
+      if (s?.transaction?.status) { const r = await applyDoku(s); last = (r as any).status as string; if (last === 'paid') break; }
+    } else {
+      const s = await getStatus(p.order_id);
+      if (s?.transaction_status) { const r = await applyMidtrans(s); last = r.status as string; if (last === 'paid') break; }
+    }
   }
   revalidatePath(`/akun/pendaftaran/${id}`);
   return { ok: true, status: last };
@@ -198,4 +204,30 @@ export async function applyReferral(id: string, code: string): Promise<Res> {
   if (!data) return { ok: false, error: 'Kode referral tidak ditemukan atau tidak aktif.' };
   revalidatePath(`/akun/pendaftaran/${id}`);
   return { ok: true };
+}
+
+/* ---------- DOKU Checkout ---------- */
+export async function createDokuPayment(id: string): Promise<Res & { url?: string }> {
+  const { supabase, user } = await me();
+  if (!dokuReady()) return { ok: false, error: 'Pembayaran online belum aktif. Hubungi admin.' };
+  const { data: a } = await supabase.from('applications')
+    .select('id,user_id,reg_code,status,amount,payment_due_at,full_name,email,phone,schemes!applications_scheme_id_fkey(name)').eq('id', id).maybeSingle();
+  if (!a || a.user_id !== user.id) return { ok: false, error: 'Pendaftaran tidak ditemukan.' };
+  if (a.status !== 'awaiting_payment') return { ok: false, error: 'Pendaftaran ini tidak sedang menunggu pembayaran.' };
+  const minutes = Math.floor((new Date(a.payment_due_at).getTime() - Date.now()) / 60000);
+  if (minutes < 10) return { ok: false, error: 'Batas pembayaran sudah lewat. Hubungi admin untuk dibuka kembali.' };
+  const db = createAdminClient();
+  const { data: prev } = await db.from('payments').select('order_id,snap_token,status,amount,created_at').eq('application_id', id).order('created_at', { ascending: false });
+  const reuse = (prev || []).find((p: any) => p.status === 'pending' && p.snap_token?.startsWith('http') && Number(p.amount) === Number(a.amount)
+    && Date.now() - new Date(p.created_at).getTime() < 6 * 60 * 60 * 1000);
+  if (reuse) return { ok: true, url: reuse.snap_token };
+  const invoice = `${a.reg_code}-D${(prev?.length || 0) + 1}`;
+  try {
+    const url = await createDokuCheckout({ invoice, amount: Number(a.amount), name: a.full_name || 'Peserta', email: a.email || user.email!,
+      phone: a.phone || '', item: `Sertifikasi BNSP ${(a as any).schemes?.name || ''}`, minutes,
+      callbackUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/akun/pendaftaran/${id}?bayar=1` });
+    const { error } = await db.from('payments').insert({ application_id: id, order_id: invoice, amount: a.amount, status: 'pending', snap_token: url, expires_at: a.payment_due_at, payment_type: 'doku' });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, url };
+  } catch (e: any) { return { ok: false, error: 'Gagal membuka pembayaran: ' + e.message }; }
 }

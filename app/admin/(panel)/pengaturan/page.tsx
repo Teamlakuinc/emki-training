@@ -1,9 +1,19 @@
-import { requireStaff, paymentMethod } from '@/lib/admin';
-import PaymentSettings from '@/components/admin/PaymentSettings';
+import { requireStaff } from '@/lib/admin';
+import { dokuReady } from '@/lib/doku';
 
 export default async function Page() {
-  const { supabase } = await requireStaff('super');
-  const { data: banks } = await supabase.from('bank_accounts').select('*').order('sort_order');
-  return (<><h1>Pengaturan pembayaran</h1>
-    <PaymentSettings method={await paymentMethod()} banks={banks || []} midtransReady={!!process.env.MIDTRANS_SERVER_KEY && !!process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY} /></>);
+  await requireStaff('super');
+  const ready = dokuReady(); const prod = process.env.DOKU_IS_PRODUCTION === 'true';
+  return (<>
+    <h1>Pengaturan pembayaran</h1>
+    <div className="card">
+      <h2>DOKU Checkout</h2>
+      <dl className="kv">
+        <dt>Status kunci</dt><dd>{ready ? <span className="badge green">Terpasang</span> : <span className="badge red">Belum diisi di server</span>}</dd>
+        <dt>Mode</dt><dd>{prod ? <span className="badge green">Production (uang asli)</span> : <span className="badge amber">Sandbox (uji coba)</span>}</dd>
+        <dt>Notification URL</dt><dd><code>{(process.env.NEXT_PUBLIC_SITE_URL || '') + '/api/doku/notification'}</code></dd>
+      </dl>
+      <p className="muted small" style={{ marginTop: 12 }}>Semua pembayaran peserta otomatis melalui DOKU (VA, QRIS, e-wallet, kartu). Status lunas berubah otomatis dari notifikasi DOKU. Kunci & mode diatur di file .env.local di server.</p>
+    </div>
+  </>);
 }

@@ -45,8 +45,5 @@ export async function sendAppEmail(appId: string, key: string, extra: Record<str
   } catch (e) { console.error('email gagal', key, e); return false; }
 }
 
-/** Template "siap bayar" sesuai metode pembayaran yang aktif */
-export async function readyToPayKey(): Promise<string> {
-  const { data } = await createAdminClient().from('app_settings').select('value').eq('key', 'payment_method').maybeSingle();
-  return (data?.value as any) === 'midtrans' ? 'email_siap_bayar' : 'email_siap_bayar_transfer';
-}
+/** Template "siap bayar" (pembayaran online DOKU) */
+export async function readyToPayKey(): Promise<string> { return 'email_siap_bayar'; }

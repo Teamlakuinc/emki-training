@@ -13,7 +13,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <nav className="adm-nav" aria-label="Menu admin">
         <Link href="/admin">Dashboard</Link>
         <Link href="/admin/pendaftar?status=submitted">Verifikasi</Link>
-        <Link href="/admin/pembayaran">Konfirmasi Pembayaran{proofs ? <span className="badge amber" style={{ marginLeft: 6 }}>{proofs}</span> : null}</Link>
+        {proofs ? <Link href="/admin/pembayaran">Konfirmasi Pembayaran<span className="badge amber" style={{ marginLeft: 6 }}>{proofs}</span></Link> : null}
         <Link href="/admin/pendaftar">Pendaftar</Link>
         <Link href="/admin/jadwal">Jadwal Ujikom</Link>
         {admin && <Link href="/admin/skema">Skema & Harga</Link>}

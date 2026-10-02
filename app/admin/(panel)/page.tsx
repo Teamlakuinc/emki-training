@@ -16,7 +16,7 @@ export default async function Dashboard({ searchParams }: { searchParams: { akse
       <h1>Dashboard</h1>
       <div className="stats">
         {card('/admin/pendaftar?status=submitted', st.menunggu_verifikasi, 'Menunggu verifikasi', true)}
-        {card('/admin/pembayaran', review, 'Bukti transfer menunggu konfirmasi', true)}
+        {review ? card('/admin/pembayaran', review, 'Bukti transfer lama menunggu konfirmasi', true) : null}
         {card('/admin/pendaftar?status=awaiting_payment', st.menunggu_bayar, 'Menunggu pembayaran')}
         {card('/admin/pendaftar?status=paid', st.lunas, 'Lunas')}
         {card('/admin/pendaftar?status=revision_required', st.perlu_perbaikan, 'Perlu perbaikan')}

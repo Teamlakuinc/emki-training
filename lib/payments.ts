@@ -16,3 +16,17 @@ export async function applyMidtrans(n: any) {
   if (st === 'paid' && pay.status !== 'paid') await sendAppEmail(pay.application_id, 'email_lunas');
   return { ok: true, status: st };
 }
+
+/** Terapkan notifikasi / hasil cek status dari DOKU */
+export async function applyDoku(n: any) {
+  const { mapDokuStatus } = await import('@/lib/doku');
+  const invoice = n?.order?.invoice_number;
+  const st = mapDokuStatus(n?.transaction?.status);
+  if (!invoice || !st) return { ok: true, status: null };
+  return applyMidtrans({
+    order_id: invoice, transaction_status: st, fraud_status: null,
+    transaction_id: n?.transaction?.original_request_id || n?.virtual_account_info?.virtual_account_number || null,
+    payment_type: n?.channel?.id || n?.service?.id || 'doku',
+    gross_amount: n?.order?.amount != null ? Number(n.order.amount) : null, ...n,
+  });
+}

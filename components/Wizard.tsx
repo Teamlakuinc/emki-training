@@ -1,11 +1,11 @@
 'use client';
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ACCEPT, PENDIDIKAN, PROVINSI, STATUS, jam, rupiah, tanggal, waktu, waLink } from '@/lib/format';
 import {
   saveSession, savePersonal, saveSiapkerja, recordDocument, getDocUrl, saveConsent,
-  submitApplication, acceptRecommendation, cancelApplication, createPayment, checkPayment, submitProof, applyReferral,
+  submitApplication, acceptRecommendation, cancelApplication, createPayment, checkPayment, submitProof, applyReferral, createDokuPayment,
 } from '@/app/akun/actions';
 
 type Props = { app: any; scheme: any; userId: string; sessions: any[]; current: any; docs: any[]; hasSecret: boolean; logs: any[]; recommended: any; recSessions: any[]; reqDocs: any[]; fields: any[]; clientKey: string; prod: boolean; method: string; banks: any[]; proofs: any[] };
@@ -125,13 +125,7 @@ function StatusPanel(p: StepProps) {
         </div>
       )}
 
-      {app.status === 'awaiting_payment' && (p.method === 'midtrans' ? <PayBox {...p} /> : <>
-        <TransferBox {...p} />
-        {p.method === 'both' && <><p className="muted small center" style={{ margin: '12px 0' }}>— atau bayar online —</p><PayBox {...p} /></>}
-      </>)}
-      {app.status === 'payment_review' && p.proofs[0] && (
-        <div className="alert alert-info" style={{ marginBottom: 0 }}>Bukti transfer dari <b>{p.proofs[0].sender_name}</b> ({p.proofs[0].sender_bank}, {tanggal(p.proofs[0].transfer_date)}) sedang dicek. Total: <b>{rupiah(app.amount)}</b>.</div>
-      )}
+      {app.status === 'awaiting_payment' && <DokuPayBox {...p} />}
 
       {['submitted', 'recommended', 'awaiting_payment'].includes(app.status) && (
         <p className="small" style={{ marginTop: 14, marginBottom: 0 }}>
@@ -139,6 +133,40 @@ function StatusPanel(p: StepProps) {
             onClick={() => { if (confirm('Batalkan pendaftaran ini? Kursi Ujikom Anda akan dilepas.')) p.run(() => cancelApplication(app.id), 'Pendaftaran dibatalkan.'); }}>Batalkan pendaftaran</button>
         </p>
       )}
+    </div>
+  );
+}
+
+/* ---------------- pembayaran DOKU ---------------- */
+function DokuPayBox(p: StepProps) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [checking, setChecking] = useState(false);
+  useEffect(() => {
+    // kembali dari halaman DOKU → cek status langsung
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('bayar')) {
+      setChecking(true);
+      checkPayment(p.app.id).then(() => { setChecking(false); router.replace(window.location.pathname); router.refresh(); });
+    }
+  }, []); // eslint-disable-line
+  async function pay() {
+    setErr(''); setBusy(true);
+    const r = await createDokuPayment(p.app.id);
+    if (!r.ok || !r.url) { setBusy(false); return setErr(r.error || 'Gagal membuka pembayaran.'); }
+    window.location.href = r.url;
+  }
+  return (
+    <div className="card" style={{ borderColor: 'var(--green-2)', background: '#FBFEFC', marginBottom: 0 }}>
+      <div className="row between">
+        <div><div className="muted small">Total pembayaran</div><div className="price">{rupiah(p.app.amount)}</div>
+          <div className="small">Batas pembayaran: <b>{waktu(p.app.payment_due_at)}</b></div></div>
+        <button className="btn btn-green" onClick={pay} disabled={busy || checking}>{busy ? 'Membuka…' : 'Bayar sekarang'}</button>
+      </div>
+      {checking && <div className="alert alert-info" style={{ marginTop: 12, marginBottom: 0 }}>Memeriksa status pembayaran…</div>}
+      {err && <div className="alert alert-err" style={{ marginTop: 12, marginBottom: 0 }}>{err}</div>}
+      <p className="muted small" style={{ margin: '12px 0 0' }}>Pembayaran aman melalui <b>DOKU</b>: Virtual Account bank, QRIS, e-wallet, kartu, dan metode lain yang tersedia. Status berubah otomatis setelah pembayaran berhasil.
+        {' '}Sudah bayar tapi status belum berubah? <button type="button" onClick={async () => { setChecking(true); await checkPayment(p.app.id); setChecking(false); router.refresh(); }} style={{ background: 'none', border: 0, color: 'var(--blue)', cursor: 'pointer', padding: 0, font: 'inherit', textDecoration: 'underline' }}>Cek status pembayaran</button></p>
     </div>
   );
 }
