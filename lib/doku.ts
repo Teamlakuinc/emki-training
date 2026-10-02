@@ -3,7 +3,8 @@ import { createHash, createHmac, randomUUID } from 'crypto';
 
 const prod = () => process.env.DOKU_IS_PRODUCTION === 'true';
 const base = () => (prod() ? 'https://api.doku.com' : 'https://api-sandbox.doku.com');
-export const DOKU_NOTIF_PATH = '/api/doku/notification';
+/** Path Notification URL. HARUS sama dengan path yang diisi di DOKU Back Office (aturan override DOKU). */
+export const DOKU_NOTIF_PATH = process.env.DOKU_NOTIF_PATH || '/api/doku/notification';
 
 const digestOf = (body: string) => createHash('sha256').update(body, 'utf8').digest('base64');
 
@@ -36,6 +37,8 @@ export async function createDokuCheckout(p: { invoice: string; amount: number; n
     },
     payment: { payment_due_date: Math.max(30, p.minutes) },
     customer: { name: p.name.slice(0, 64), email: p.email, phone: (p.phone || '').replace(/[^\d+]/g, '') },
+    // notifikasi transaksi platform ini dikirim ke domain training (path sama dengan yang di Back Office)
+    additional_info: { override_notification_url: `${process.env.NEXT_PUBLIC_SITE_URL}${DOKU_NOTIF_PATH}` },
   });
   const res = await fetch(base() + target, { method: 'POST', headers: headers(target, body), body });
   const data: any = await res.json().catch(() => ({}));

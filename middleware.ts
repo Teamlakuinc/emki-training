@@ -2,6 +2,13 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
+  // Notification URL DOKU memakai path yang sama dengan HACCP dashboard → arahkan ke handler training
+  const dokuPath = process.env.DOKU_NOTIF_PATH;
+  if (dokuPath && dokuPath !== '/api/doku/notification' && request.nextUrl.pathname === dokuPath) {
+    const url = request.nextUrl.clone(); url.pathname = '/api/doku/notification';
+    return NextResponse.rewrite(url);
+  }
+
   let response = NextResponse.next({ request });
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
