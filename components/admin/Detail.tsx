@@ -33,7 +33,11 @@ export default function Detail(p: any) {
   });
   const wa = (key: string) => {
     const t = p.templates.find((x: any) => x.key === key); if (!t) return;
-    window.open(`https://wa.me/${waNumber(a.phone)}?text=${encodeURIComponent(fillTemplate(t.body, varsFor(a, p.site)))}`, '_blank', 'noopener');
+    const v = varsFor(a, p.site);
+    let msg = fillTemplate(t.body, v);
+    // bantu peserta masuk ke akun yang benar saat membuka link
+    if (t.body.includes('{link}') && !t.body.includes('{email_akun}') && v.email_akun) msg += `\n\n(Masuk dengan email: ${v.email_akun})`;
+    window.open(`https://wa.me/${waNumber(a.phone)}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
     logNotification(a.id, key);
   };
 
@@ -75,7 +79,7 @@ export default function Detail(p: any) {
               <dt>Tempat, tgl lahir</dt><dd>{a.birth_place}, {a.birth_date ? tanggal(a.birth_date) : '-'}</dd>
               <dt>Jenis kelamin</dt><dd>{a.gender === 'L' ? 'Laki-laki' : a.gender === 'P' ? 'Perempuan' : '-'}</dd>
               <dt>Alamat KTP</dt><dd>{a.address_ktp}</dd><dt>Kota / Provinsi</dt><dd>{a.city} / {a.province}</dd>
-              <dt>Telp / WA</dt><dd>{a.phone}</dd><dt>Email</dt><dd>{a.email}</dd>
+              <dt>Telp / WA</dt><dd>{a.phone}</dd><dt>Email</dt><dd>{a.email}</dd><dt>Email akun login</dt><dd>{a.account_email || '-'}</dd>
               <dt>Pendidikan</dt><dd>{a.education}</dd><dt>Pekerjaan</dt><dd>{a.occupation}</dd><dt>PT / Institusi</dt><dd>{a.workplace}</dd>
               <dt>Pengalaman</dt><dd><b>{a.experience_years ?? '-'} tahun</b></dd>
               {p.fields.filter((c: any) => a.extra_answers?.[c.code] != null && a.extra_answers?.[c.code] !== '').map((c: any) => <Fragment key={c.code}><dt>{c.label}</dt><dd>{String(a.extra_answers[c.code])}</dd></Fragment>)}

@@ -36,6 +36,7 @@ function MasukForm() {
       {params.get('confirmed') && <div className="alert alert-ok">Email berhasil dikonfirmasi. Silakan masuk.</div>}
       {params.get('reset') && <div className="alert alert-ok">Password berhasil diganti. Silakan masuk.</div>}
       {params.get('error') === 'link' && <div className="alert alert-warn">Link dari email sudah tidak berlaku. Silakan masuk, atau gunakan <Link href="/lupa-password">Lupa password</Link> untuk meminta link baru.</div>}
+      {next.startsWith('/akun/pendaftaran/') && <div className="alert alert-info">Anda membuka link pendaftaran yang <b>sudah ada</b>. Masuk dengan <b>email yang dulu dipakai saat mendaftar</b>, jangan buat akun baru. Lupa password? Pakai <Link href="/lupa-password">Lupa password</Link>.</div>}
       {err && <div className="alert alert-err">{err}</div>}
       <form onSubmit={onSubmit}>
         <div className="field"><label htmlFor="email">Email</label><input id="email" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} /></div>

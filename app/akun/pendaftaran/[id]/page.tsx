@@ -1,5 +1,7 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { cleanId, maskEmail, ownerOf } from '@/lib/applink';
+import BedaAkun from './BedaAkun';
 import Wizard from '@/components/Wizard';
 import { claimFromCookie } from '@/lib/ref';
 
@@ -10,9 +12,23 @@ export default async function Page({ params }: { params: { id: string } }) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   await claimFromCookie(user);
+  // link dari WA kadang ikut tanda baca di ujungnya → rapikan dulu
+  const id = cleanId(params.id);
+  if (!id) notFound();
+  if (id !== params.id) redirect(`/akun/pendaftaran/${id}`);
   const { data: app } = await supabase.from('applications')
-    .select('*, schemes!applications_scheme_id_fkey(id,slug,name,price,requires_verification)').eq('id', params.id).maybeSingle();
-  if (!app || app.user_id !== user!.id) notFound();
+    .select('*, schemes!applications_scheme_id_fkey(id,slug,name,price,requires_verification)').eq('id', id).maybeSingle();
+  if (!app || app.user_id !== user!.id) {
+    // staf / koordinator yang membuka link peserta → arahkan ke halaman kelolanya
+    const { data: prof } = await supabase.from('profiles').select('role').eq('id', user!.id).maybeSingle();
+    const role = (prof?.role as string) || 'participant';
+    if (['super_admin', 'admin', 'verifikator'].includes(role)) redirect(`/admin/pendaftar/${id}`);
+    if (role === 'koordinator') redirect(`/koordinator/peserta/${id}`);
+    // peserta yang masuk dengan akun lain → beri tahu akun yang benar
+    const owner = await ownerOf(id);
+    if (!owner) notFound();
+    return <BedaAkun id={id} ownerMasked={maskEmail(owner.email)} myEmail={user!.email || ''} />;
+  }
   const scheme: any = (app as any).schemes;
 
   // semua data dimuat bersamaan (lebih cepat di HP / sinyal lemah)

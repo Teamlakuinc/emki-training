@@ -17,7 +17,7 @@ export function varsFor(a: any, site: string) {
   return {
     nama: a.full_name, skema: a.schemes?.name, reg_code: a.reg_code || '(belum ada)',
     tanggal: j ? tanggal(j.exam_date) : '', sesi: s?.name || '', jam: s ? `${jam(s.start_time)}–${jam(s.end_time)} WIB` : '',
-    tuk: j?.tuk || '', alamat: j?.address || '', link: `${site}/akun/pendaftaran/${a.id}`,
+    tuk: j?.tuk || '', alamat: j?.address || '', link: `${site}/akun/pendaftaran/${a.id}`, email_akun: a.account_email || a.email || '',
     batas_bayar: a.payment_due_at ? waktu(a.payment_due_at) : '', catatan: a.verifier_note || '',
     skema_rekomendasi: a.rec?.name || '', nominal: rupiah(a.amount),
   };
