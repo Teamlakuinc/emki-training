@@ -3,7 +3,6 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { STATUS, rupiah, waktu } from '@/lib/format';
 import { adminSetCoordinator, adminReprice, adminSetAmount, adminSetStatus, adminSetScheme, adminDeleteApplication, adminSetDeadline, adminSendReset, adminMoveToAccount } from '@/app/admin/actions';
-import EditParticipant from '@/components/admin/EditParticipant';
 
 const inp = { style: { font: 'inherit', fontSize: 14, padding: '8px 10px', border: '1.5px solid #D5D8DC', borderRadius: 8, width: '100%' } } as const;
 const ACT: Record<string, string> = { ubah_koordinator: 'Ubah koordinator', hitung_ulang_harga: 'Hitung ulang harga', ubah_harga_manual: 'Ubah harga manual', ubah_status_manual: 'Ubah status', ubah_skema: 'Ubah skema', ubah_data_peserta: 'Ubah data peserta', hapus_pendaftaran: 'Hapus', upload_dokumen_admin: 'Upload dokumen oleh admin', kembali_ke_verifikasi: 'Kembalikan ke antrean verifikasi', siapkerja_salah: 'Tandai akun SIAPkerja salah', siapkerja_beres: 'Tandai SIAPkerja beres', batalkan_persetujuan: 'Batalkan persetujuan → perlu perbaikan', ubah_batas_bayar: 'Ubah batas bayar', kirim_reset_password: 'Kirim link reset password', pindah_akun: 'Pindahkan ke akun lain', pakai_versi_dokumen: 'Pakai versi dokumen lama' };
@@ -56,7 +55,7 @@ export default function ManageApplication({ a, coordinators, schemes, logs, isSu
         <button className="btn btn-outline btn-sm" disabled={pending || scheme === a.scheme_id} onClick={() => run(() => adminSetScheme(a.id, scheme, schRe), 'Skema diubah.')}>Simpan skema</button></div>
 
       <div style={sec}><span className="lbl">Data peserta</span>
-        <EditParticipant a={a} fields={fields} onMsg={setMsg} /></div>
+        <p className="small" style={{ margin: 0 }}>Edit data peserta, SIAPkerja &amp; password SIAPkerja lewat tombol <a href="#edit-data"><b>✎ Edit data peserta</b></a> di kartu Data peserta.</p></div>
 
       {['awaiting_payment', 'expired'].includes(a.status) && <div style={sec}><span className="lbl">Batas bayar</span>
         <div className="row"><input type="datetime-local" value={due} onChange={e => setDue(e.target.value)} style={{ ...inp.style, width: 240 }} />

@@ -7,6 +7,7 @@ import SiapkerjaFlag from '@/components/admin/SiapkerjaFlag';
 import AdminDocUpload from '@/components/admin/AdminDocUpload';
 import StaffDocUpload from '@/components/admin/StaffDocUpload';
 import ManageApplication from '@/components/admin/ManageApplication';
+import EditParticipant from '@/components/admin/EditParticipant';
 import { decide, adminUndoApproval, moveSession, extendPayment, revealSecret, saveAdminNotes, logNotification } from '@/app/admin/actions';
 
 const DEC: Record<string, string> = { approve: '✅ Disetujui', revision: '📄 Minta perbaikan', recommend: '🔁 Rekomendasi skema', reject: '⛔ Ditolak' };
@@ -85,7 +86,7 @@ export default function Detail(p: any) {
           )}
 
           <div className="card">
-            <h2>Data peserta</h2>
+            <div className="row between"><h2>Data peserta</h2>{p.isAdmin && <a className="btn btn-outline btn-sm" href="#edit-data">✎ Edit</a>}</div>
             <dl className="kv">
               <dt>Nama</dt><dd>{a.full_name}</dd><dt>NIK</dt><dd>{a.nik}</dd>
               <dt>Tempat, tgl lahir</dt><dd>{a.birth_place}, {a.birth_date ? tanggal(a.birth_date) : '-'}</dd>
@@ -96,10 +97,12 @@ export default function Detail(p: any) {
               <dt>Pengalaman</dt><dd><b>{a.experience_years ?? '-'} tahun</b></dd>
               {p.fields.filter((c: any) => a.extra_answers?.[c.code] != null && a.extra_answers?.[c.code] !== '').map((c: any) => <Fragment key={c.code}><dt>{c.label}</dt><dd>{String(a.extra_answers[c.code])}</dd></Fragment>)}
             </dl>
+            {p.isAdmin && <div id="edit-data" style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+              <EditParticipant a={a} fields={p.fields} onMsg={setMsg} /></div>}
           </div>
 
           <div className="card">
-            <h2>Akun SIAPkerja</h2>
+            <div className="row between"><h2>Akun SIAPkerja</h2>{p.isAdmin && <a className="btn btn-outline btn-sm" href="#edit-data">✎ Edit</a>}</div>
             <dl className="kv"><dt>Email</dt><dd>{a.siapkerja_email || '-'}</dd><dt>No. telepon</dt><dd>{a.siapkerja_phone || '-'}</dd>
               <dt>Password</dt><dd>{secret ? <span className="secret">{secret}</span> : p.hasSecret ? '•••••••• (tersimpan terenkripsi)' : 'Tidak tersedia / sudah dihapus otomatis'}</dd></dl>
             {p.hasSecret && !secret && (

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { PENDIDIKAN, PROVINSI, appliesTo } from '@/lib/format';
 import { adminUpdateData } from '@/app/admin/actions';
@@ -32,6 +32,10 @@ export default function EditParticipant({ a, fields, onMsg }: { a: any; fields: 
   const custom = (fields || []).filter((c: any) => appliesTo(c, a.scheme_id) || a.extra_answers?.[c.code] != null);
   const [x, setX] = useState<Record<string, string>>(() => Object.fromEntries(custom.map((c: any) => [c.code, a.extra_answers?.[c.code] == null ? '' : String(a.extra_answers[c.code])])));
   const [pw, setPw] = useState('');
+  useEffect(() => {
+    const go = () => { if (window.location.hash === '#edit-data') { setF(init()); setOpen(true); } };
+    go(); window.addEventListener('hashchange', go); return () => window.removeEventListener('hashchange', go);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const field = (d: F) => {
     const v = f[d.k] ?? ''; const on = (e: any) => setF({ ...f, [d.k]: e.target.value });
@@ -66,9 +70,9 @@ export default function EditParticipant({ a, fields, onMsg }: { a: any; fields: 
         <button className="btn btn-primary btn-sm" disabled={pending} onClick={() => start(async () => {
           const r = await adminUpdateData(a.id, f, custom.length ? x : undefined, pw || undefined);
           if (!r.ok) return onMsg({ t: 'err', m: r.error! });
-          setPw(''); setOpen(false); onMsg({ t: 'ok', m: 'Data peserta diperbarui.' }); router.refresh();
+          setPw(''); setOpen(false); history.replaceState(null, '', ' '); onMsg({ t: 'ok', m: 'Data peserta diperbarui.' }); router.refresh();
         })}>{pending ? 'Menyimpan…' : 'Simpan perubahan'}</button>
-        <button className="btn btn-outline btn-sm" disabled={pending} onClick={() => setOpen(false)}>Batal</button>
+        <button className="btn btn-outline btn-sm" disabled={pending} onClick={() => { setOpen(false); history.replaceState(null, '', ' '); }}>Batal</button>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-# Update 3.14 — Admin lebih fleksibel
+# Update 3.14b — Admin lebih fleksibel (tombol Edit di kartu Data peserta)
 
 Sudah termasuk 3.8–3.13. Tidak ada SQL baru (SQL 14 tetap wajib sudah dijalankan).
 
