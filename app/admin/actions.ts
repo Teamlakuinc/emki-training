@@ -506,3 +506,28 @@ export async function adminClearSiapkerja(appId: string): Promise<Res> {
   revalidatePath(`/admin/pendaftar/${appId}`); revalidatePath(`/akun/pendaftaran/${appId}`);
   return { ok: true };
 }
+
+/* ======================= BATALKAN PERSETUJUAN (salah klik verifikasi) ======================= */
+/** Pendaftaran yang sudah disetujui tapi belum bayar → kembali ke "Perlu perbaikan" + email revisi. */
+export async function adminUndoApproval(appId: string, note: string): Promise<Res> {
+  const { user } = await requireStaff();
+  const n = (note || '').trim().slice(0, 1000);
+  if (!n) return err('Tulis catatan perbaikan untuk peserta (dokumen mana yang harus diganti).');
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const db = createAdminClient();
+  const { data: a } = await db.from('applications').select('id,status').eq('id', appId).maybeSingle();
+  if (!a) return err('Pendaftaran tidak ditemukan.');
+  if (a.status === 'paid') return err('Peserta sudah membayar. Gunakan tombol Ganti di kartu Dokumen untuk memperbaiki dokumennya.');
+  if (!['awaiting_payment', 'expired'].includes(a.status)) return err('Hanya pendaftaran yang sudah disetujui dan belum dibayar yang bisa dibatalkan.');
+  const { data: paid } = await db.from('payments').select('id').eq('application_id', appId).eq('status', 'paid').limit(1);
+  if (paid?.length) return err('Sudah ada pembayaran lunas untuk pendaftaran ini. Perbaiki dokumen lewat tombol Ganti di kartu Dokumen.');
+  const { error } = await db.from('applications').update({
+    status: 'revision_required', payment_due_at: null, verifier_note: n, verified_at: new Date().toISOString(), verified_by: user.id,
+  }).eq('id', appId).in('status', ['awaiting_payment', 'expired']);
+  if (error) return err(error.message);
+  await db.from('verification_logs').insert({ application_id: appId, verifier_id: user.id, decision: 'revision', note: n });
+  await adminLog(db, user.id, appId, 'batalkan_persetujuan', { dari: a.status, ke: 'revision_required', catatan: n });
+  await sendAppEmail(appId, 'email_revisi');
+  revalidatePath(`/admin/pendaftar/${appId}`); revalidatePath('/admin'); revalidatePath(`/akun/pendaftaran/${appId}`);
+  return { ok: true };
+}

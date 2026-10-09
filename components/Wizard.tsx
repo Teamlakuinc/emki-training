@@ -454,6 +454,16 @@ function StepDocs(p: StepProps) {
             <div className="body">
               <div className="lbl" style={{ marginBottom: 2 }}>{d.name}{!d.is_required && <span className="opt" style={{ fontWeight: 400 }}> (opsional)</span>}</div>
               <div className="muted small">{d.description || `Format ${acc.label}, maksimal 10 MB.`}</div>
+              {d.code === 'pas_foto' && (
+                <details className="small" style={{ marginTop: 8 }} open={!cur}>
+                  <summary><b>📸 Lihat contoh pas foto yang benar &amp; salah</b></summary>
+                  <ul style={{ paddingLeft: 18, margin: '8px 0' }}>
+                    <li>Latar belakang <b>merah polos</b>, tampak depan, setengah badan (kepala sampai dada).</li>
+                    <li>Pakaian rapi/formal, <b>tanpa kacamata hitam</b>, mulut tertutup (gigi tidak terlihat).</li>
+                    <li><b>Bukan</b> selfie, bukan foto seluruh badan, bukan pose miring.</li>
+                  </ul>
+                  <a href="/contoh-pas-foto.jpg" target="_blank" rel="noopener"><img src="/contoh-pas-foto.jpg" alt="Contoh pas foto benar dan salah" style={{ width: '100%', maxWidth: 420, borderRadius: 8, border: '1px solid var(--line)' }} loading="lazy" /></a>
+                </details>)}
               {cur && <div className="fn">{cur.file_name} · <button type="button" className="small" style={{ background: 'none', border: 0, color: 'var(--blue)', cursor: 'pointer', padding: 0 }} onClick={() => view(cur.storage_path)}>lihat</button></div>}
               <label className="btn btn-outline" style={{ marginTop: 10, padding: '8px 14px', fontSize: 14 }}>
                 {busy === d.code ? 'Mengunggah…' : cur ? 'Ganti file' : 'Pilih file'}

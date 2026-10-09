@@ -7,7 +7,7 @@ import SiapkerjaFlag from '@/components/admin/SiapkerjaFlag';
 import AdminDocUpload from '@/components/admin/AdminDocUpload';
 import StaffDocUpload from '@/components/admin/StaffDocUpload';
 import ManageApplication from '@/components/admin/ManageApplication';
-import { decide, moveSession, extendPayment, revealSecret, saveAdminNotes, logNotification } from '@/app/admin/actions';
+import { decide, adminUndoApproval, moveSession, extendPayment, revealSecret, saveAdminNotes, logNotification } from '@/app/admin/actions';
 
 const DEC: Record<string, string> = { approve: '✅ Disetujui', revision: '📄 Minta perbaikan', recommend: '🔁 Rekomendasi skema', reject: '⛔ Ditolak' };
 
@@ -71,6 +71,16 @@ export default function Detail(p: any) {
                 <textarea id="note" rows={3} value={note} onChange={e => setNote(e.target.value)} placeholder={decision === 'recommend' ? 'mis. Pengalaman di paklaring baru 1 tahun, lebih sesuai skema Demi Chef.' : ''} /></div>
               <button className="btn btn-primary" disabled={pending || (decision === 'recommend' && !rec)}
                 onClick={() => run(() => decide(a.id, decision, note, rec), 'Keputusan tersimpan. Kirim kabar ke peserta lewat tombol WhatsApp di bawah.')}>Simpan keputusan</button>
+            </div>
+          )}
+          {['awaiting_payment', 'expired'].includes(a.status) && (
+            <div className="card" style={{ borderColor: '#F0C36D' }}>
+              <h2>Salah setujui?</h2>
+              <p className="muted small">Kalau ternyata dokumen perlu diperbaiki, kembalikan ke status <b>Perlu perbaikan</b>. Batas bayar dihapus, peserta mendapat email revisi, lalu bisa upload ulang dan kirim lagi untuk diverifikasi.</p>
+              <div className="field"><label htmlFor="undo">Catatan perbaikan untuk peserta <span className="opt">(wajib)</span></label>
+                <textarea id="undo" rows={3} value={note} onChange={e => setNote(e.target.value)} placeholder="mis. Pas foto harus latar merah, tampak depan, bukan selfie. CV & paklaring belum lengkap." /></div>
+              <button className="btn btn-outline" disabled={pending || !note.trim()}
+                onClick={() => { if (confirm('Batalkan persetujuan dan minta peserta memperbaiki dokumen?')) run(() => adminUndoApproval(a.id, note), 'Dikembalikan ke "Perlu perbaikan". Kirim kabar ke peserta lewat tombol WhatsApp di bawah.'); }}>↩ Batalkan persetujuan & minta perbaikan</button>
             </div>
           )}
 
