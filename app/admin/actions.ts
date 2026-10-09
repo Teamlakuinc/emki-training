@@ -301,9 +301,9 @@ export async function reviewPayment(proofId: string, approve: boolean, note: str
 /* ---------- pengaturan pembayaran & rekening (Super Admin) ---------- */
 export async function savePaymentMethod(method: string): Promise<Res> {
   const { supabase } = await requireStaff('super');
-  if (!['manual', 'midtrans', 'both'].includes(method)) return err('Pilihan tidak valid.');
+  if (!['doku', 'manual', 'both'].includes(method)) return err('Pilihan tidak valid.');
   const { error } = await supabase.from('app_settings').upsert({ key: 'payment_method', value: method, updated_at: new Date().toISOString() });
-  revalidatePath('/admin/pengaturan');
+  revalidatePath('/admin/pengaturan'); revalidatePath('/akun', 'layout'); revalidatePath('/bayar', 'layout');
   return error ? err(error.message) : { ok: true };
 }
 export async function saveBank(f: FormData): Promise<Res> {

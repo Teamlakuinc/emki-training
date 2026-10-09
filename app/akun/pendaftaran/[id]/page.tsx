@@ -5,6 +5,7 @@ import BedaAkun from './BedaAkun';
 import Wizard from '@/components/Wizard';
 import Link from 'next/link';
 import { claimFromCookie } from '@/lib/ref';
+import { paymentMethod } from '@/lib/admin';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Formulir Pendaftaran' };
@@ -44,6 +45,8 @@ export default async function Page({ params }: { params: { id: string } }) {
     app.session_id ? supabase.from('exam_sessions').select('id,name,start_time,end_time,exam_schedules(title,exam_date,tuk,address)').eq('id', app.session_id).maybeSingle() : Promise.resolve({ data: null } as any),
     app.status === 'recommended' && app.recommended_scheme_id ? supabase.from('schemes').select('id,slug,name,price').eq('id', app.recommended_scheme_id).single() : Promise.resolve({ data: null } as any),
   ]);
+  const method = await paymentMethod();
+  const { data: banks } = method === 'doku' ? { data: [] as any[] } : await supabase.from('bank_accounts').select('bank,account_number,account_name').eq('is_active', true).order('sort_order');
   let recSessions: any[] = [];
   if (recR.data) {
     const { data: rs } = await supabase.rpc('available_sessions', { p_scheme_slug: recR.data.slug, p_coordinator: app.coordinator_id });
@@ -59,7 +62,7 @@ export default async function Page({ params }: { params: { id: string } }) {
       </div>)}
     <Wizard app={app} scheme={scheme} userId={user!.id} sessions={(sessR.data as any[]) || []} current={curR.data}
       docs={docsR.data || []} hasSecret={!!secretR.data} logs={logsR.data || []} recommended={recR.data} recSessions={recSessions}
-      method="doku" banks={[]} proofs={proofsR.data || []} clientKey="" prod={false}
+      method={method} banks={banks || []} proofs={proofsR.data || []} clientKey="" prod={false}
       reqDocs={(reqR.data || []).filter(applies)} fields={(fieldsR.data || []).filter(applies)} />
   </>);
 }

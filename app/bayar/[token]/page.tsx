@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { appByToken } from '@/lib/paylink';
 import { rupiah, tanggal, waktu, jam, waLink } from '@/lib/format';
 import PayButton from '../PayButton';
+import BankInfo from '../BankInfo';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Pembayaran Sertifikasi', robots: { index: false } };
@@ -27,6 +28,7 @@ export default async function Page({ params, searchParams }: { params: { token: 
       ) : a.status === 'awaiting_payment' && !lewat ? (<>
         <p className="muted small">Pembayaran melalui DOKU (transfer bank / virtual account, QRIS, e-wallet, kartu). Siapa pun boleh membayar lewat link ini.</p>
         <PayButton token={params.token} kind="app" label={`Bayar ${rupiah(a.amount)}`} autoCheck={!!searchParams.selesai} />
+        <BankInfo amount={Number(a.amount)} label={a.reg_code} waText={`Halo admin EMKI, berikut bukti transfer untuk ${a.reg_code} (${a.full_name}) sebesar ${rupiah(a.amount)}.`} />
       </>) : (
         <div className="alert alert-warn">{lewat || a.status === 'expired' ? 'Batas pembayaran sudah lewat.' : 'Pendaftaran ini belum/tidak sedang menunggu pembayaran.'} Silakan hubungi admin EMKI.</div>
       )}

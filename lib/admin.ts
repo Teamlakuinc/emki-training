@@ -36,8 +36,8 @@ export async function requireCoordinator() {
 }
 
 /** Pengaturan metode pembayaran: manual | midtrans | both */
-export async function paymentMethod(): Promise<'manual' | 'midtrans' | 'both'> {
+export async function paymentMethod(): Promise<'doku' | 'manual' | 'both'> {
   const { data } = await createClient().from('app_settings').select('value').eq('key', 'payment_method').maybeSingle();
-  const v = data?.value as any;
-  return v === 'midtrans' || v === 'both' ? v : 'manual';
+  const v = typeof data?.value === 'string' ? data.value : String(data?.value ?? '').replace(/"/g, '');
+  return v === 'manual' || v === 'both' ? v : 'doku';
 }

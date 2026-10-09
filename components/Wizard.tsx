@@ -130,7 +130,7 @@ function StatusPanel(p: StepProps) {
         </div>
       )}
 
-      {app.status === 'awaiting_payment' && <DokuPayBox {...p} />}
+      {app.status === 'awaiting_payment' && <PayChoice {...p} />}
 
       {['submitted', 'recommended', 'awaiting_payment'].includes(app.status) && (
         <p className="small" style={{ marginTop: 14, marginBottom: 0 }}>
@@ -189,6 +189,24 @@ function ReferralBox({ id }: { id: string }) {
       <p className="muted small" style={{ margin: '8px 0 0' }}>Kode didapat dari koordinator yang mengajak Anda. Harga akan menyesuaikan.</p>
     </div>
   );
+}
+
+/* ---------------- pilihan metode bayar ---------------- */
+function PayChoice(p: StepProps) {
+  const [m, setM] = useState<'doku' | 'manual'>(p.method === 'manual' ? 'manual' : 'doku');
+  if (p.method === 'manual') return <TransferBox {...p} />;
+  if (p.method !== 'both') return <DokuPayBox {...p} />;
+  const tab = (k: 'doku' | 'manual', t: string, d: string) => (
+    <button type="button" onClick={() => setM(k)} style={{ flex: 1, minWidth: 150, textAlign: 'left', cursor: 'pointer', font: 'inherit', padding: '10px 12px', borderRadius: 10, border: `2px solid ${m === k ? 'var(--blue)' : 'var(--line)'}`, background: m === k ? 'var(--blue-soft)' : '#fff' }}>
+      <b>{t}</b><div className="muted small">{d}</div></button>);
+  return (<>
+    <div className="lbl" style={{ marginBottom: 6 }}>Pilih cara pembayaran</div>
+    <div className="row" style={{ gap: 8, marginBottom: 12, alignItems: 'stretch' }}>
+      {tab('doku', '⚡ Bayar online', 'VA bank, QRIS, e-wallet · lunas otomatis')}
+      {tab('manual', '🏦 Transfer manual', 'Transfer ke rekening BCA · upload bukti')}
+    </div>
+    {m === 'doku' ? <DokuPayBox {...p} /> : <TransferBox {...p} />}
+  </>);
 }
 
 /* ---------------- transfer manual ---------------- */
