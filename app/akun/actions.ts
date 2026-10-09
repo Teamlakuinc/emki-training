@@ -217,9 +217,11 @@ export async function createDokuPayment(id: string): Promise<Res & { url?: strin
   const minutes = Math.floor((new Date(a.payment_due_at).getTime() - Date.now()) / 60000);
   if (minutes < 10) return { ok: false, error: 'Batas pembayaran sudah lewat. Hubungi admin untuk dibuka kembali.' };
   const db = createAdminClient();
-  const { data: prev } = await db.from('payments').select('order_id,snap_token,status,amount,created_at').eq('application_id', id).order('created_at', { ascending: false });
+  const { data: prev } = await db.from('payments').select('order_id,snap_token,status,amount,created_at,expires_at').eq('application_id', id).order('created_at', { ascending: false });
+  // pakai ulang halaman DOKU lama hanya kalau batas waktunya masih sama (belum diperpanjang/diubah) dan belum lewat
   const reuse = (prev || []).find((p: any) => p.status === 'pending' && p.snap_token?.startsWith('http') && Number(p.amount) === Number(a.amount)
-    && Date.now() - new Date(p.created_at).getTime() < 6 * 60 * 60 * 1000);
+    && Date.now() - new Date(p.created_at).getTime() < 6 * 60 * 60 * 1000 && p.expires_at && a.payment_due_at
+    && new Date(p.expires_at).getTime() === new Date(a.payment_due_at).getTime() && new Date(p.expires_at).getTime() > Date.now() + 5 * 60000);
   if (reuse) return { ok: true, url: reuse.snap_token };
   const invoice = `${a.reg_code}-D${(prev?.length || 0) + 1}`;
   try {

@@ -34,8 +34,11 @@ export async function checkoutForApp(appId: string, callbackUrl: string): Promis
   if (a.status !== 'awaiting_payment') return { ok: false, error: 'Pendaftaran ini tidak sedang menunggu pembayaran.' };
   const minutes = minutesLeft(a.payment_due_at);
   if (minutes < 10) return { ok: false, error: 'Batas pembayaran sudah lewat. Hubungi admin untuk dibuka kembali.' };
-  const { data: prev } = await db.from('payments').select('order_id,snap_token,status,amount,created_at').eq('application_id', appId).order('created_at', { ascending: false });
-  const reuse = (prev || []).find((p: any) => p.status === 'pending' && p.snap_token?.startsWith('http') && Number(p.amount) === Number(a.amount) && Date.now() - new Date(p.created_at).getTime() < SIX_H);
+  const { data: prev } = await db.from('payments').select('order_id,snap_token,status,amount,created_at,expires_at').eq('application_id', appId).order('created_at', { ascending: false });
+  // pakai ulang halaman DOKU lama hanya kalau batas waktunya masih sama (belum diperpanjang/diubah) dan belum lewat
+  const reuse = (prev || []).find((p: any) => p.status === 'pending' && p.snap_token?.startsWith('http') && Number(p.amount) === Number(a.amount)
+    && Date.now() - new Date(p.created_at).getTime() < SIX_H && p.expires_at && a.payment_due_at
+    && new Date(p.expires_at).getTime() === new Date(a.payment_due_at).getTime() && new Date(p.expires_at).getTime() > Date.now() + 5 * 60000);
   if (reuse) return { ok: true, url: reuse.snap_token };
   const invoice = `${a.reg_code}-D${(prev?.length || 0) + 1}`;
   try {
@@ -89,7 +92,7 @@ export async function checkoutForGroup(token: string, callbackUrl: string): Prom
   const db = createAdminClient();
   const { data: prev } = await db.from('group_payments').select('order_id,snap_token,status,amount,app_ids,created_at').eq('invoice_id', data.g.id).order('created_at', { ascending: false });
   const same = (x: string[]) => [...x].sort().join() === ids.join();
-  const reuse = (prev || []).find((p: any) => p.status === 'pending' && Number(p.amount) === total && same(p.app_ids) && Date.now() - new Date(p.created_at).getTime() < SIX_H);
+  const reuse = (prev || []).find((p: any) => p.status === 'pending' && Number(p.amount) === total && same(p.app_ids) && Date.now() - new Date(p.created_at).getTime() < 25 * 60000);
   if (reuse) return { ok: true, url: reuse.snap_token };
   const minutes = Math.min(...list.map(a => minutesLeft(a.payment_due_at)));
   const invoice = `${data.g.code}-D${(prev?.length || 0) + 1}`;

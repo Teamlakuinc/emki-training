@@ -1,4 +1,4 @@
-# Update 3.18 — Transfer manual BCA aktif lagi (DOKU tetap jalan)
+# Update 3.18b — Transfer manual BCA aktif lagi (DOKU tetap jalan)
 
 Sudah termasuk SEMUA update sebelumnya (3.8–3.17c).
 
@@ -10,6 +10,7 @@ Sudah termasuk SEMUA update sebelumnya (3.8–3.17c).
 - supabase/17_aktifkan_transfer_manual.sql   (BARU)
 
 ## Fitur
+- Perbaikan: setelah batas bayar diperpanjang, tombol Bayar membuat halaman DOKU baru (tidak memakai halaman lama yang sudah kedaluwarsa).
 - Panel Admin → Pengaturan: pilih metode pembayaran: DOKU saja / Transfer manual saja / Keduanya. Kelola rekening.
 - Peserta (mode Keduanya): pilih "Bayar online" (DOKU) atau "Transfer manual" (rekening BCA + upload bukti).
 - Bukti transfer masuk ke menu "Konfirmasi Pembayaran" → klik Konfirmasi → status Lunas + email.
