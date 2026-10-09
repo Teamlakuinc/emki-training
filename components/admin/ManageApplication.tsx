@@ -5,7 +5,7 @@ import { STATUS, rupiah, waktu } from '@/lib/format';
 import { adminSetCoordinator, adminReprice, adminSetAmount, adminSetStatus, adminSetScheme, adminUpdateData, adminDeleteApplication } from '@/app/admin/actions';
 
 const inp = { style: { font: 'inherit', fontSize: 14, padding: '8px 10px', border: '1.5px solid #D5D8DC', borderRadius: 8, width: '100%' } } as const;
-const ACT: Record<string, string> = { ubah_koordinator: 'Ubah koordinator', hitung_ulang_harga: 'Hitung ulang harga', ubah_harga_manual: 'Ubah harga manual', ubah_status_manual: 'Ubah status', ubah_skema: 'Ubah skema', ubah_data_peserta: 'Ubah data peserta', hapus_pendaftaran: 'Hapus' };
+const ACT: Record<string, string> = { ubah_koordinator: 'Ubah koordinator', hitung_ulang_harga: 'Hitung ulang harga', ubah_harga_manual: 'Ubah harga manual', ubah_status_manual: 'Ubah status', ubah_skema: 'Ubah skema', ubah_data_peserta: 'Ubah data peserta', hapus_pendaftaran: 'Hapus', upload_dokumen_admin: 'Upload dokumen oleh admin', kembali_ke_verifikasi: 'Kembalikan ke antrean verifikasi' };
 
 export default function ManageApplication({ a, coordinators, schemes, logs, isSuper }: { a: any; coordinators: any[]; schemes: any[]; logs: any[]; isSuper: boolean }) {
   const router = useRouter();

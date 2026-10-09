@@ -3,6 +3,7 @@ import { Fragment, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { STATUS, jam, rupiah, tanggal, waktu, appliesTo } from '@/lib/format';
 import { fillTemplate, varsFor, waNumber } from '@/lib/templates';
+import AdminDocUpload from '@/components/admin/AdminDocUpload';
 import StaffDocUpload from '@/components/admin/StaffDocUpload';
 import ManageApplication from '@/components/admin/ManageApplication';
 import { decide, moveSession, extendPayment, revealSecret, saveAdminNotes, logNotification } from '@/app/admin/actions';
@@ -106,9 +107,8 @@ export default function Detail(p: any) {
         <div>
           <div className="card">
             <h2>Dokumen</h2>
-            {p.reqDocs.filter((d: any) => d.filled_by !== 'staff' && (appliesTo(d, a.scheme_id) || p.docs.some((x: any) => x.doc_type === d.code))).map((d: any) => { const cur = p.docs.find((x: any) => x.doc_type === d.code); return (
-              <div className="doc-link" key={d.code}><span><b>{d.name}</b><div className="muted small">{cur ? `${cur.file_name} · v${cur.version}` : d.is_required ? 'Belum diunggah' : 'Belum diunggah (opsional)'}</div></span>
-                {p.urls[d.code] && <a className="btn btn-outline btn-sm" href={p.urls[d.code]} target="_blank" rel="noopener">Buka</a>}</div>); })}
+            <AdminDocUpload appId={a.id} status={a.status} current={p.docs} urls={p.urls}
+              docs={p.reqDocs.filter((d: any) => d.filled_by !== 'staff' && (appliesTo(d, a.scheme_id) || p.docs.some((x: any) => x.doc_type === d.code)))} />
           </div>
 
           <div className="card">

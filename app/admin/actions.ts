@@ -421,3 +421,60 @@ export async function repriceOne(id: string): Promise<Res> {
   revalidatePath('/admin'); revalidatePath('/admin/cek-harga');
   return error ? err(error.message) : { ok: true };
 }
+
+/* ======================= UPLOAD DOKUMEN PESERTA OLEH ADMIN ======================= */
+const MIME_EXT: Record<string, string> = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg' };
+const ACCEPT_MIMES: Record<string, string[]> = { image: ['image/jpeg', 'image/png'], pdf: ['application/pdf'], image_pdf: ['image/jpeg', 'image/png', 'application/pdf'] };
+
+async function adminLog(db: any, actorId: string, appId: string, action: string, detail: any) {
+  const { data: a } = await db.from('applications').select('reg_code,full_name').eq('id', appId).maybeSingle();
+  await db.from('admin_change_logs').insert({ application_id: appId, reg_code: a?.reg_code, full_name: a?.full_name, actor_id: actorId, action, detail });
+}
+
+/** Langkah 1: minta link upload sekali pakai (berlaku untuk admin & verifikator). */
+export async function adminDocUploadUrl(appId: string, docCode: string, mime: string, size: number): Promise<Res> {
+  await requireStaff();
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const db = createAdminClient();
+  const [{ data: a }, { data: d }] = await Promise.all([
+    db.from('applications').select('id,user_id').eq('id', appId).maybeSingle(),
+    db.from('required_documents').select('code,accept,filled_by').eq('code', docCode).maybeSingle(),
+  ]);
+  if (!a) return err('Pendaftaran tidak ditemukan.');
+  if (!d) return err('Jenis dokumen tidak dikenal.');
+  if (!(ACCEPT_MIMES[d.accept] || ACCEPT_MIMES.image_pdf).includes(mime)) return err('Format file tidak sesuai untuk dokumen ini.');
+  if (!(size > 0 && size <= 10 * 1024 * 1024)) return err('Maksimal 10 MB.');
+  const path = `${a.user_id}/${a.id}/tim-rev-${d.code}-${Date.now()}.${MIME_EXT[mime]}`;
+  const { data, error } = await db.storage.from('application-documents').createSignedUploadUrl(path);
+  if (error || !data) return err(error?.message || 'Gagal menyiapkan upload.');
+  return { ok: true, data: { path, token: data.token } };
+}
+
+/** Langkah 2: catat dokumen sebagai versi terbaru (versi lama tetap tersimpan). */
+export async function adminRecordDocument(appId: string, doc: { type: string; path: string; name: string; mime: string; size: number }): Promise<Res> {
+  const { user } = await requireStaff();
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const db = createAdminClient();
+  const { data: a } = await db.from('applications').select('user_id').eq('id', appId).maybeSingle();
+  if (!a || !doc.path.startsWith(`${a.user_id}/${appId}/tim-rev-${doc.type}-`)) return err('Lokasi file tidak valid.');
+  const { error } = await db.from('application_documents').insert({
+    application_id: appId, doc_type: doc.type, storage_path: doc.path, file_name: doc.name.slice(0, 200), mime_type: doc.mime, size_bytes: doc.size });
+  if (error) return err(error.message);
+  await adminLog(db, user.id, appId, 'upload_dokumen_admin', { dokumen: doc.type, file: doc.name.slice(0, 200) });
+  revalidatePath(`/admin/pendaftar/${appId}`); revalidatePath(`/akun/pendaftaran/${appId}`);
+  return { ok: true };
+}
+
+/** Setelah admin membereskan dokumen: kembalikan status "Perlu perbaikan" → antrean verifikasi. */
+export async function adminBackToVerification(appId: string): Promise<Res> {
+  const { user } = await requireStaff();
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const db = createAdminClient();
+  const { data, error } = await db.from('applications').update({ status: 'submitted' })
+    .eq('id', appId).eq('status', 'revision_required').select('id');
+  if (error) return err(error.message);
+  if (!data?.length) return err('Status pendaftaran ini bukan "Perlu perbaikan".');
+  await adminLog(db, user.id, appId, 'kembali_ke_verifikasi', { dari: 'revision_required', ke: 'submitted' });
+  revalidatePath(`/admin/pendaftar/${appId}`); revalidatePath('/admin'); revalidatePath('/admin/verifikasi');
+  return { ok: true };
+}
