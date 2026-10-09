@@ -1,4 +1,4 @@
-# Update 3.17b — Link bayar tanpa login (per peserta & kolektif) + token huruf kecil
+# Update 3.17c — Link bayar tanpa login (per peserta & kolektif) + token huruf kecil
 
 Sudah termasuk SEMUA update sebelumnya (3.8–3.16 + perbaikan "daftar langsung masuk").
 
@@ -9,6 +9,7 @@ Sudah termasuk SEMUA update sebelumnya (3.8–3.16 + perbaikan "daftar langsung 
 4. supabase/16b_token_huruf_kecil.sql   (BARU)
 
 ## Fitur
+- Detail pendaftar → Perpanjang batas bayar: pilih +2 / +6 / +12 / +24 / +72 jam atau isi jumlah jam sendiri.
 - Detail pendaftar (status Menunggu pembayaran) → kartu "Link bayar tanpa login":
   salin link, kirim WA ke peserta, atau kirim ke nomor WA pihak yang membayari.
 - Menu baru "Bayar Kolektif": centang beberapa peserta → isi data pembayar → "Buat link tagihan".

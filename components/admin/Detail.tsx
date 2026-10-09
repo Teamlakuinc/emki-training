@@ -20,6 +20,7 @@ export default function Detail(p: any) {
   const [msg, setMsg] = useState<{ t: string; m: string } | null>(null);
   const [decision, setDecision] = useState('approve');
   const [note, setNote] = useState('');
+  const [hrs, setHrs] = useState('');
   const [rec, setRec] = useState('');
   const [target, setTarget] = useState('');
   const [force, setForce] = useState(false);
@@ -162,8 +163,17 @@ export default function Detail(p: any) {
               <label className="check small"><input type="checkbox" checked={force} onChange={e => setForce(e.target.checked)} />Paksa walaupun sesi tujuan penuh</label>
               <div className="row" style={{ marginTop: 10 }}>
                 <button className="btn btn-outline btn-sm" disabled={!target || pending} onClick={() => run(() => moveSession(a.id, target, force), 'Sesi dipindahkan. Kirim info ke peserta lewat WhatsApp.')}>Pindahkan</button>
-                {['awaiting_payment', 'expired'].includes(a.status) && <button className="btn btn-outline btn-sm" disabled={pending} onClick={() => run(() => extendPayment(a.id, 72), 'Batas bayar diperpanjang 3×24 jam.')}>Perpanjang batas bayar 3×24 jam</button>}
               </div>
+              {['awaiting_payment', 'expired'].includes(a.status) && (
+                <div style={{ marginTop: 12 }}>
+                  <label className="small" style={{ fontWeight: 600 }}>Perpanjang batas bayar (dihitung dari sekarang)</label>
+                  <div className="row" style={{ gap: 6, marginTop: 6 }}>
+                    {[2, 6, 12, 24, 72].map(h => <button key={h} className="btn btn-outline btn-sm" disabled={pending} onClick={() => run(() => extendPayment(a.id, h), `Batas bayar diperpanjang ${h} jam dari sekarang (tetap dibatasi maks. H-1 pukul 15.00 / jam mulai sesi).`)}>+{h} jam</button>)}
+                    <input type="number" min={1} max={720} value={hrs} onChange={e => setHrs(e.target.value)} placeholder="jam" style={{ width: 80, font: 'inherit', fontSize: 14, padding: '6px 8px', border: '1.5px solid #D5D8DC', borderRadius: 8 }} />
+                    <button className="btn btn-primary btn-sm" disabled={pending || !(Number(hrs) >= 1)} onClick={() => run(() => extendPayment(a.id, Math.min(720, Math.round(Number(hrs)))), `Batas bayar diperpanjang ${hrs} jam dari sekarang.`)}>Perpanjang</button>
+                  </div>
+                  <p className="muted small" style={{ margin: '6px 0 0' }}>Batas bayar tidak bisa melewati H-1 Ujikom pukul 15.00. Kalau sudah lewat, maksimal sampai jam mulai sesi.</p>
+                </div>)}
             </>)}
           </div>
 
