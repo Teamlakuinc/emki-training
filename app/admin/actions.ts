@@ -623,3 +623,75 @@ export async function adminUndoApproval(appId: string, note: string): Promise<Re
   revalidatePath(`/admin/pendaftar/${appId}`); revalidatePath('/admin'); revalidatePath(`/akun/pendaftaran/${appId}`);
   return { ok: true };
 }
+
+/* ======================= AKTIFKAN AKUN (email konfirmasi tidak sampai) ======================= */
+export async function adminConfirmUsers(ids: string[] | 'all'): Promise<Res> {
+  await requireStaff('admin');
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const db = createAdminClient();
+  let targets: string[] = [];
+  if (ids === 'all') {
+    for (let page = 1; page <= 10; page++) {
+      const { data } = await db.auth.admin.listUsers({ page, perPage: 1000 });
+      const users = data?.users || [];
+      targets.push(...users.filter(u => !u.email_confirmed_at).map(u => u.id));
+      if (users.length < 1000) break;
+    }
+  } else targets = ids.filter(x => /^[0-9a-f-]{36}$/i.test(x));
+  // hanya akun peserta
+  const { data: parts } = await db.from('profiles').select('id').in('id', targets.length ? targets : ['00000000-0000-0000-0000-000000000000']).eq('role', 'participant');
+  let count = 0;
+  for (const p of parts || []) { const { error } = await db.auth.admin.updateUserById(p.id, { email_confirm: true }); if (!error) count++; }
+  revalidatePath('/admin/akun');
+  return { ok: true, data: { count } };
+}
+
+/* ======================= LINK BAYAR TANPA LOGIN ======================= */
+export async function adminPayLink(appId: string): Promise<Res> {
+  const { user } = await requireStaff();
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const { newToken } = await import('@/lib/paylink');
+  const db = createAdminClient();
+  const { data: a } = await db.from('applications').select('pay_token').eq('id', appId).maybeSingle();
+  if (!a) return err('Pendaftaran tidak ditemukan.');
+  let token = a.pay_token;
+  if (!token) {
+    token = newToken();
+    const { error } = await db.from('applications').update({ pay_token: token }).eq('id', appId);
+    if (error) return err(error.message);
+    await adminLog(db, user.id, appId, 'buat_link_bayar', {});
+  }
+  return { ok: true, data: { url: `${process.env.NEXT_PUBLIC_SITE_URL}/bayar/${token}` } };
+}
+
+export async function adminCreateGroupInvoice(ids: string[], d: { title?: string; payer_name?: string; payer_phone?: string; payer_email?: string }): Promise<Res> {
+  const { user } = await requireStaff();
+  const list = Array.from(new Set((ids || []).filter(x => /^[0-9a-f-]{36}$/i.test(x))));
+  if (list.length < 1) return err('Pilih minimal 1 peserta.');
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const { newToken } = await import('@/lib/paylink');
+  const db = createAdminClient();
+  const { data: apps } = await db.from('applications').select('id,status').in('id', list);
+  const bad = (apps || []).filter(a => a.status !== 'awaiting_payment');
+  if (bad.length || (apps || []).length !== list.length) return err('Hanya peserta berstatus "Menunggu pembayaran" yang bisa dimasukkan.');
+  const code = 'KOL-' + newToken().replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase();
+  const token = newToken();
+  const clean = (v?: string) => (v || '').trim().slice(0, 120) || null;
+  const { data: g, error } = await db.from('group_invoices').insert({ code, token, title: clean(d.title), payer_name: clean(d.payer_name), payer_phone: clean(d.payer_phone), payer_email: clean(d.payer_email), created_by: user.id }).select('id').single();
+  if (error || !g) return err(error?.message);
+  const { error: e2 } = await db.from('group_invoice_items').insert(list.map(application_id => ({ invoice_id: g.id, application_id })));
+  if (e2) return err(e2.message);
+  revalidatePath('/admin/bayar-kolektif');
+  return { ok: true, data: { url: `${process.env.NEXT_PUBLIC_SITE_URL}/bayar/kolektif/${token}`, code } };
+}
+
+export async function adminDeleteGroupInvoice(id: string): Promise<Res> {
+  await requireStaff('admin');
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const db = createAdminClient();
+  const { data: paid } = await db.from('group_payments').select('id').eq('invoice_id', id).eq('status', 'paid').limit(1);
+  if (paid?.length) return err('Tagihan ini sudah ada pembayaran lunas, tidak bisa dihapus.');
+  const { error } = await db.from('group_invoices').delete().eq('id', id);
+  revalidatePath('/admin/bayar-kolektif');
+  return error ? err(error.message) : { ok: true };
+}

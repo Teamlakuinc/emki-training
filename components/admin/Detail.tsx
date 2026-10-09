@@ -8,6 +8,7 @@ import AdminDocUpload from '@/components/admin/AdminDocUpload';
 import StaffDocUpload from '@/components/admin/StaffDocUpload';
 import ManageApplication from '@/components/admin/ManageApplication';
 import EditParticipant from '@/components/admin/EditParticipant';
+import PayLinkCard from '@/components/admin/PayLinkCard';
 import { decide, adminUndoApproval, moveSession, extendPayment, revealSecret, saveAdminNotes, logNotification } from '@/app/admin/actions';
 
 const DEC: Record<string, string> = { approve: '✅ Disetujui', revision: '📄 Minta perbaikan', recommend: '🔁 Rekomendasi skema', reject: '⛔ Ditolak' };
@@ -165,6 +166,8 @@ export default function Detail(p: any) {
               </div>
             </>)}
           </div>
+
+          {['awaiting_payment', 'expired'].includes(a.status) && <PayLinkCard a={a} site={p.site} />}
 
           <div className="card">
             <h2>Kirim WhatsApp</h2>

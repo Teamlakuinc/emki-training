@@ -15,6 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <Link href="/admin/pendaftar?status=submitted">Verifikasi</Link>
         {proofs ? <Link href="/admin/pembayaran">Konfirmasi Pembayaran<span className="badge amber" style={{ marginLeft: 6 }}>{proofs}</span></Link> : null}
         <Link href="/admin/pendaftar">Pendaftar</Link>
+        <Link href="/admin/bayar-kolektif">Bayar Kolektif</Link>
         <Link href="/admin/akun">Akun Peserta</Link>
         <Link href="/admin/jadwal">Jadwal Ujikom</Link>
         {admin && <Link href="/admin/skema">Skema & Harga</Link>}

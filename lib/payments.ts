@@ -21,6 +21,8 @@ export async function applyMidtrans(n: any) {
 export async function applyDoku(n: any) {
   const { mapDokuStatus } = await import('@/lib/doku');
   const invoice = n?.order?.invoice_number;
+  // tagihan kolektif (KOL-...) → diproses terpisah
+  if (typeof invoice === 'string' && invoice.startsWith('KOL-')) { const { applyGroupDoku } = await import('@/lib/paylink'); return applyGroupDoku(n); }
   const st = mapDokuStatus(n?.transaction?.status);
   if (!invoice || !st) return { ok: true, status: null };
   return applyMidtrans({
