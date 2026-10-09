@@ -652,7 +652,8 @@ export async function adminPayLink(appId: string): Promise<Res> {
   const { createAdminClient } = await import('@/lib/supabase/admin');
   const { newToken } = await import('@/lib/paylink');
   const db = createAdminClient();
-  const { data: a } = await db.from('applications').select('pay_token').eq('id', appId).maybeSingle();
+  const { data: a, error: e0 } = await db.from('applications').select('pay_token').eq('id', appId).maybeSingle();
+  if (e0) return err(/pay_token/.test(e0.message) ? 'Database belum diperbarui: jalankan SQL 16 di Supabase EMKI Training.' : e0.message);
   if (!a) return err('Pendaftaran tidak ditemukan.');
   let token = a.pay_token;
   if (!token) {

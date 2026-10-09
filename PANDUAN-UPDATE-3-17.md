@@ -1,4 +1,4 @@
-# Update 3.17 — Link bayar tanpa login (per peserta & kolektif)
+# Update 3.17b — Link bayar tanpa login (per peserta & kolektif) + token huruf kecil
 
 Sudah termasuk SEMUA update sebelumnya (3.8–3.16 + perbaikan "daftar langsung masuk").
 
@@ -6,6 +6,7 @@ Sudah termasuk SEMUA update sebelumnya (3.8–3.16 + perbaikan "daftar langsung 
 1. supabase/14_perbaikan_siapkerja.sql   (kalau belum)
 2. supabase/15_batas_bayar_sebelum_ujikom.sql   (kalau belum)
 3. supabase/16_link_bayar_tanpa_login.sql   (BARU)
+4. supabase/16b_token_huruf_kecil.sql   (BARU)
 
 ## Fitur
 - Detail pendaftar (status Menunggu pembayaran) → kartu "Link bayar tanpa login":

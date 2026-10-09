@@ -5,7 +5,8 @@ import { createDokuCheckout, getDokuStatus, mapDokuStatus, dokuReady } from '@/l
 import { applyDoku } from '@/lib/payments';
 import { sendAppEmail } from '@/lib/email';
 
-export const newToken = () => randomBytes(18).toString('base64url');
+// huruf kecil + angka saja: aman walau link diketik ulang / diubah huruf kecil oleh aplikasi chat
+export const newToken = () => randomBytes(15).toString('hex');
 const site = () => process.env.NEXT_PUBLIC_SITE_URL || '';
 const SIX_H = 6 * 60 * 60 * 1000;
 const minutesLeft = (iso?: string | null) => (iso ? Math.floor((new Date(iso).getTime() - Date.now()) / 60000) : 0);
@@ -13,10 +14,12 @@ const minutesLeft = (iso?: string | null) => (iso ? Math.floor((new Date(iso).ge
 /* ===================== PER PESERTA ===================== */
 export async function appByToken(token: string) {
   if (!/^[A-Za-z0-9_-]{16,64}$/.test(token || '')) return null;
+  token = token.toLowerCase();
   const db = createAdminClient();
-  const { data } = await db.from('applications')
+  const { data, error } = await db.from('applications')
     .select('id,reg_code,full_name,email,phone,status,amount,payment_due_at,paid_at,schemes!applications_scheme_id_fkey(name),exam_sessions(name,start_time,end_time,exam_schedules(exam_date,tuk))')
     .eq('pay_token', token).maybeSingle();
+  if (error) console.error('appByToken', error.message);
   return data;
 }
 
@@ -59,8 +62,10 @@ export async function refreshApp(appId: string) {
 /* ===================== KOLEKTIF ===================== */
 export async function groupByToken(token: string) {
   if (!/^[A-Za-z0-9_-]{16,64}$/.test(token || '')) return null;
+  token = token.toLowerCase();
   const db = createAdminClient();
-  const { data: g } = await db.from('group_invoices').select('*').eq('token', token).maybeSingle();
+  const { data: g, error } = await db.from('group_invoices').select('*').eq('token', token).maybeSingle();
+  if (error) console.error('groupByToken', error.message);
   if (!g) return null;
   const { data: items } = await db.from('group_invoice_items')
     .select('application_id, applications(id,reg_code,full_name,status,amount,payment_due_at,schemes!applications_scheme_id_fkey(name),exam_sessions(name,exam_schedules(exam_date,tuk)))')
