@@ -22,7 +22,7 @@ export default async function Page({ params }: { params: { id: string } }) {
   ]);
   const [{ data: reqDocs }, { data: fields }] = await Promise.all([
     supabase.from('required_documents').select('code,name,description,accept,is_required,scheme_ids,filled_by').order('sort_order'),
-    supabase.from('custom_fields').select('code,label,scheme_ids').order('sort_order'),
+    supabase.from('custom_fields').select('code,label,scheme_ids,field_type,options,is_active').order('sort_order'),
   ]);
   // sesi lain yang menguji skema ini (untuk pindah sesi)
   const { data: sess } = await supabase.from('exam_sessions')
@@ -35,11 +35,19 @@ export default async function Page({ params }: { params: { id: string } }) {
     supabase.from('coordinators').select('id,name,code').order('name'),
     supabase.from('admin_change_logs').select('id,action,detail,created_at,profiles(full_name,email)').eq('application_id', a.id).order('created_at', { ascending: false }).limit(30),
   ]);
+  // riwayat versi dokumen (untuk dibuka / dipakai kembali)
+  const { data: allDocs } = await supabase.from('application_documents').select('id,doc_type,storage_path,file_name,version,is_current,created_at').eq('application_id', a.id).order('version', { ascending: false });
+  const history = (allDocs || []).filter((d: any) => !d.is_current);
+  const histUrls: Record<string, string> = {};
+  if (history.length) {
+    const { data: signed } = await supabase.storage.from('application-documents').createSignedUrls(history.map((d: any) => d.storage_path), 600);
+    (signed || []).forEach((x: any, i: number) => { if (x.signedUrl) histUrls[history[i].id] = x.signedUrl; });
+  }
   const urls: Record<string, string> = {};
   for (const d of docs || []) {
     const { data } = await supabase.storage.from('application-documents').createSignedUrl(d.storage_path, 600);
     if (data) urls[d.doc_type] = data.signedUrl;
   }
   return <Detail a={a} docs={docs || []} urls={urls} logs={logs || []} notifs={notifs || []} schemes={schemes || []} templates={templates || []}
-    sessions={sess || []} reqDocs={reqDocs || []} fields={fields || []} hasSecret={!!hasSecret} isAdmin={isAdminRole(role)} isSuper={role === 'super_admin'} proofs={proofs || []} proofUrls={proofUrls} coordList={coordList || []} changeLogs={changeLogs || []} site={process.env.NEXT_PUBLIC_SITE_URL || ''} />;
+    sessions={sess || []} reqDocs={reqDocs || []} fields={fields || []} hasSecret={!!hasSecret} isAdmin={isAdminRole(role)} isSuper={role === 'super_admin'} proofs={proofs || []} proofUrls={proofUrls} coordList={coordList || []} changeLogs={changeLogs || []} history={history} histUrls={histUrls} site={process.env.NEXT_PUBLIC_SITE_URL || ''} />;
 }

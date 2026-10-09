@@ -389,18 +389,110 @@ export async function adminSetScheme(id: string, schemeId: string, reprice: bool
   if (reprice) { const { error: e2 } = await supabase.rpc('admin_reprice', { p_app: id }); if (e2) return err('Skema diubah, tapi harga gagal dihitung ulang: ' + e2.message); }
   done(id); return { ok: true };
 }
-export async function adminUpdateData(id: string, d: Record<string, string>): Promise<Res> {
+export async function adminUpdateData(id: string, d: Record<string, string>, extra?: Record<string, string>, siapkerjaPassword?: string): Promise<Res> {
   const { supabase, user } = await requireStaff('admin');
   const keys = ['full_name', 'nik', 'birth_place', 'birth_date', 'gender', 'address_ktp', 'city', 'province', 'phone', 'email', 'education', 'occupation', 'workplace', 'experience_years', 'siapkerja_email', 'siapkerja_phone'];
+  const { data: old } = await supabase.from('applications').select('*').eq('id', id).single();
+  if (!old) return err('Pendaftaran tidak ditemukan.');
   const patch: any = {};
   for (const k of keys) if (k in d) patch[k] = (d[k] ?? '').toString().trim() || null;
+  if (patch.nik) patch.nik = patch.nik.replace(/\D/g, '');
   if (patch.nik && !/^[0-9]{16}$/.test(patch.nik)) return err('NIK harus 16 digit angka.');
   if (patch.gender && !['L', 'P'].includes(patch.gender)) return err('Jenis kelamin: L atau P.');
-  if (patch.experience_years != null) patch.experience_years = Number(String(patch.experience_years).replace(',', '.'));
-  const { error } = await supabase.from('applications').update(patch).eq('id', id);
+  if (patch.experience_years != null) {
+    patch.experience_years = Number(String(patch.experience_years).replace(',', '.'));
+    if (isNaN(patch.experience_years) || patch.experience_years < 0 || patch.experience_years > 60) return err('Lama pengalaman tidak valid.');
+  }
+  if (extra) patch.extra_answers = { ...(old.extra_answers || {}), ...Object.fromEntries(Object.entries(extra).filter(([k]) => /^[a-z0-9_]{1,60}$/.test(k)).map(([k, v]) => [k, String(v ?? '').slice(0, 1000)])) };
+  // hanya simpan kolom yang benar-benar berubah, catat dari → ke
+  const changes: Record<string, string> = {};
+  for (const k of Object.keys(patch)) {
+    const before = k === 'extra_answers' ? JSON.stringify(old[k] || {}) : String(old[k] ?? '');
+    const after = k === 'extra_answers' ? JSON.stringify(patch[k] || {}) : String(patch[k] ?? '');
+    if (before === after) delete patch[k];
+    else changes[k] = k === 'extra_answers' ? 'jawaban tambahan diubah' : `${before || '-'} → ${after || '-'}`;
+  }
+  if (Object.keys(patch).length) {
+    const { error } = await supabase.from('applications').update(patch).eq('id', id);
+    if (error) return err(error.message);
+  }
+  if (siapkerjaPassword) {
+    if (siapkerjaPassword.length > 200) return err('Password terlalu panjang.');
+    const { createAdminClient } = await import('@/lib/supabase/admin');
+    const { encryptSecret } = await import('@/lib/crypto');
+    const { error } = await createAdminClient().from('application_secrets').upsert({ application_id: id, siapkerja_password_enc: encryptSecret(siapkerjaPassword), set_at: new Date().toISOString() });
+    if (error) return err('Data tersimpan, tapi password SIAPkerja gagal disimpan: ' + error.message);
+    changes.password_siapkerja = 'diganti admin';
+  }
+  if (!Object.keys(changes).length) return err('Tidak ada data yang berubah.');
+  await logChange(supabase, user.id, id, 'ubah_data_peserta', changes);
+  done(id); revalidatePath(`/akun/pendaftaran/${id}`); return { ok: true };
+}
+
+/** Atur batas bayar ke tanggal & jam tertentu. */
+export async function adminSetDeadline(id: string, iso: string): Promise<Res> {
+  const { supabase, user } = await requireStaff('admin');
+  const t = new Date(iso);
+  if (isNaN(t.getTime()) || t.getTime() < Date.now()) return err('Batas bayar harus di masa depan.');
+  const { data: a } = await supabase.from('applications').select('status,payment_due_at').eq('id', id).single();
+  if (!a || !['awaiting_payment', 'expired'].includes(a.status)) return err('Hanya untuk status Menunggu pembayaran / Kedaluwarsa.');
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const { error } = await createAdminClient().from('applications').update({ payment_due_at: t.toISOString(), status: 'awaiting_payment' }).eq('id', id);
   if (error) return err(error.message);
-  await logChange(supabase, user.id, id, 'ubah_data_peserta', { kolom: Object.keys(patch) });
+  await logChange(supabase, user.id, id, 'ubah_batas_bayar', { dari: a.payment_due_at, ke: t.toISOString() });
   done(id); return { ok: true };
+}
+
+/** Kirim email link buat password baru ke akun login peserta. */
+export async function adminSendReset(id: string): Promise<Res> {
+  const { supabase, user } = await requireStaff('admin');
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const db = createAdminClient();
+  const { data: a } = await db.from('applications').select('user_id').eq('id', id).single();
+  const { data: prof } = await db.from('profiles').select('email').eq('id', a!.user_id).single();
+  if (!prof?.email) return err('Email akun tidak ditemukan.');
+  const site = process.env.NEXT_PUBLIC_SITE_URL || '';
+  const { createClient: anonClient } = await import('@supabase/supabase-js');
+  const anon = anonClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } });
+  const { error } = await anon.auth.resetPasswordForEmail(prof.email, { redirectTo: `${site}/auth/callback?next=/reset-password` });
+  if (error) return err(error.message);
+  await logChange(supabase, user.id, id, 'kirim_reset_password', { ke: prof.email });
+  return { ok: true, data: { email: prof.email } };
+}
+
+/** Pindahkan pendaftaran ke akun lain (mis. peserta terlanjur membuat 2 akun). */
+export async function adminMoveToAccount(id: string, email: string): Promise<Res> {
+  const { supabase, user } = await requireStaff('admin');
+  const e = (email || '').trim().toLowerCase();
+  if (!e) return err('Isi email akun tujuan.');
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const db = createAdminClient();
+  const { data: target } = await db.from('profiles').select('id,email,role').ilike('email', e).maybeSingle();
+  if (!target) return err('Akun dengan email itu belum ada. Minta peserta membuat akun dulu.');
+  if (target.role !== 'participant') return err('Akun tujuan bukan akun peserta.');
+  const { data: a } = await db.from('applications').select('user_id').eq('id', id).single();
+  if (a!.user_id === target.id) return err('Pendaftaran ini sudah ada di akun tersebut.');
+  const { data: oldp } = await db.from('profiles').select('email').eq('id', a!.user_id).maybeSingle();
+  const { error } = await db.from('applications').update({ user_id: target.id }).eq('id', id);
+  if (error) return err(error.message.includes('one_active') ? 'Akun tujuan sudah punya pendaftaran aktif di skema yang sama.' : error.message);
+  await logChange(supabase, user.id, id, 'pindah_akun', { dari: oldp?.email, ke: target.email });
+  done(id); return { ok: true };
+}
+
+/** Pakai kembali versi dokumen lama. */
+export async function adminRestoreDocument(appId: string, docId: string): Promise<Res> {
+  const { user } = await requireStaff();
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const db = createAdminClient();
+  const { data: d } = await db.from('application_documents').select('id,application_id,doc_type,version,file_name').eq('id', docId).maybeSingle();
+  if (!d || d.application_id !== appId) return err('Dokumen tidak ditemukan.');
+  const { error: e1 } = await db.from('application_documents').update({ is_current: false }).eq('application_id', appId).eq('doc_type', d.doc_type).eq('is_current', true);
+  if (e1) return err(e1.message);
+  const { error: e2 } = await db.from('application_documents').update({ is_current: true }).eq('id', docId);
+  if (e2) return err(e2.message);
+  await adminLog(db, user.id, appId, 'pakai_versi_dokumen', { dokumen: d.doc_type, versi: `v${d.version}`, file: d.file_name });
+  revalidatePath(`/admin/pendaftar/${appId}`); revalidatePath(`/akun/pendaftaran/${appId}`);
+  return { ok: true };
 }
 export async function adminDeleteApplication(id: string, confirmText: string): Promise<Res> {
   const { supabase } = await requireStaff('super');

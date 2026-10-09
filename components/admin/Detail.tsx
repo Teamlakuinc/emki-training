@@ -119,7 +119,7 @@ export default function Detail(p: any) {
         <div>
           <div className="card">
             <h2>Dokumen</h2>
-            <AdminDocUpload appId={a.id} status={a.status} current={p.docs} urls={p.urls}
+            <AdminDocUpload appId={a.id} status={a.status} current={p.docs} urls={p.urls} history={p.history || []} histUrls={p.histUrls || {}}
               docs={p.reqDocs.filter((d: any) => d.filled_by !== 'staff' && (appliesTo(d, a.scheme_id) || p.docs.some((x: any) => x.doc_type === d.code)))} />
           </div>
 
@@ -176,7 +176,7 @@ export default function Detail(p: any) {
             <button className="btn btn-outline btn-sm" disabled={pending} onClick={() => run(() => saveAdminNotes(a.id, notes, result), 'Tersimpan.')}>Simpan</button>
           </div>}
 
-          {p.isAdmin && <ManageApplication a={a} coordinators={p.coordList} schemes={p.schemes} logs={p.changeLogs} isSuper={p.isSuper} />}
+          {p.isAdmin && <ManageApplication a={a} coordinators={p.coordList} schemes={p.schemes} logs={p.changeLogs} isSuper={p.isSuper} fields={p.fields} />}
 
           {p.logs.length > 0 && <div className="card"><h2>Riwayat verifikasi</h2>
             {p.logs.map((l: any, i: number) => <p key={i} className="small" style={{ margin: '0 0 8px' }}><b>{DEC[l.decision]}</b> · {waktu(l.created_at)} · {l.profiles?.full_name || l.profiles?.email}<br />{l.note}</p>)}</div>}

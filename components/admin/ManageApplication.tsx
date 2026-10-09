@@ -2,12 +2,13 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { STATUS, rupiah, waktu } from '@/lib/format';
-import { adminSetCoordinator, adminReprice, adminSetAmount, adminSetStatus, adminSetScheme, adminUpdateData, adminDeleteApplication } from '@/app/admin/actions';
+import { adminSetCoordinator, adminReprice, adminSetAmount, adminSetStatus, adminSetScheme, adminDeleteApplication, adminSetDeadline, adminSendReset, adminMoveToAccount } from '@/app/admin/actions';
+import EditParticipant from '@/components/admin/EditParticipant';
 
 const inp = { style: { font: 'inherit', fontSize: 14, padding: '8px 10px', border: '1.5px solid #D5D8DC', borderRadius: 8, width: '100%' } } as const;
-const ACT: Record<string, string> = { ubah_koordinator: 'Ubah koordinator', hitung_ulang_harga: 'Hitung ulang harga', ubah_harga_manual: 'Ubah harga manual', ubah_status_manual: 'Ubah status', ubah_skema: 'Ubah skema', ubah_data_peserta: 'Ubah data peserta', hapus_pendaftaran: 'Hapus', upload_dokumen_admin: 'Upload dokumen oleh admin', kembali_ke_verifikasi: 'Kembalikan ke antrean verifikasi', siapkerja_salah: 'Tandai akun SIAPkerja salah', siapkerja_beres: 'Tandai SIAPkerja beres', batalkan_persetujuan: 'Batalkan persetujuan → perlu perbaikan' };
+const ACT: Record<string, string> = { ubah_koordinator: 'Ubah koordinator', hitung_ulang_harga: 'Hitung ulang harga', ubah_harga_manual: 'Ubah harga manual', ubah_status_manual: 'Ubah status', ubah_skema: 'Ubah skema', ubah_data_peserta: 'Ubah data peserta', hapus_pendaftaran: 'Hapus', upload_dokumen_admin: 'Upload dokumen oleh admin', kembali_ke_verifikasi: 'Kembalikan ke antrean verifikasi', siapkerja_salah: 'Tandai akun SIAPkerja salah', siapkerja_beres: 'Tandai SIAPkerja beres', batalkan_persetujuan: 'Batalkan persetujuan → perlu perbaikan', ubah_batas_bayar: 'Ubah batas bayar', kirim_reset_password: 'Kirim link reset password', pindah_akun: 'Pindahkan ke akun lain', pakai_versi_dokumen: 'Pakai versi dokumen lama' };
 
-export default function ManageApplication({ a, coordinators, schemes, logs, isSuper }: { a: any; coordinators: any[]; schemes: any[]; logs: any[]; isSuper: boolean }) {
+export default function ManageApplication({ a, coordinators, schemes, logs, isSuper, fields = [] }: { a: any; coordinators: any[]; schemes: any[]; logs: any[]; isSuper: boolean; fields?: any[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ t: string; m: string } | null>(null);
@@ -17,8 +18,9 @@ export default function ManageApplication({ a, coordinators, schemes, logs, isSu
   const [amtReason, setAmtReason] = useState('');
   const [status, setStatus] = useState(a.status); const [stReason, setStReason] = useState('');
   const [scheme, setScheme] = useState(a.scheme_id); const [schRe, setSchRe] = useState(true);
-  const [edit, setEdit] = useState(false);
-  const [f, setF] = useState<Record<string, string>>(() => Object.fromEntries(['full_name', 'nik', 'birth_place', 'birth_date', 'gender', 'address_ktp', 'city', 'province', 'phone', 'email', 'education', 'occupation', 'workplace', 'experience_years', 'siapkerja_email', 'siapkerja_phone'].map(k => [k, a[k] == null ? '' : String(a[k])])));
+  const toLocal = (iso?: string) => { const d = iso ? new Date(iso) : new Date(Date.now() + 72 * 3600e3); return new Date(d.getTime() - d.getTimezoneOffset() * 60e3).toISOString().slice(0, 16); };
+  const [due, setDue] = useState(toLocal(a.payment_due_at));
+  const [moveEmail, setMoveEmail] = useState('');
   const [del, setDel] = useState('');
   const run = (fn: () => Promise<any>, ok: string) => start(async () => { setMsg(null); const r = await fn(); if (!r.ok) return setMsg({ t: 'err', m: r.error }); setMsg({ t: 'ok', m: ok }); router.refresh(); });
   const sec = { borderTop: '1px dashed var(--line)', paddingTop: 14, marginTop: 14 } as const;
@@ -54,9 +56,22 @@ export default function ManageApplication({ a, coordinators, schemes, logs, isSu
         <button className="btn btn-outline btn-sm" disabled={pending || scheme === a.scheme_id} onClick={() => run(() => adminSetScheme(a.id, scheme, schRe), 'Skema diubah.')}>Simpan skema</button></div>
 
       <div style={sec}><span className="lbl">Data peserta</span>
-        {!edit ? <button className="btn btn-outline btn-sm" onClick={() => setEdit(true)}>✎ Edit data peserta</button> : <>
-          <div className="grid2">{Object.keys(f).map(k => <div className="field" key={k} style={{ marginBottom: 8 }}><label className="small" style={{ fontWeight: 600 }}>{k}</label><input value={f[k]} onChange={e => setF({ ...f, [k]: e.target.value })} {...inp} /></div>)}</div>
-          <div className="row"><button className="btn btn-primary btn-sm" disabled={pending} onClick={() => run(() => adminUpdateData(a.id, f), 'Data peserta diperbarui.')}>Simpan data</button><button className="btn btn-outline btn-sm" onClick={() => setEdit(false)}>Tutup</button></div></>}</div>
+        <EditParticipant a={a} fields={fields} onMsg={setMsg} /></div>
+
+      {['awaiting_payment', 'expired'].includes(a.status) && <div style={sec}><span className="lbl">Batas bayar</span>
+        <div className="row"><input type="datetime-local" value={due} onChange={e => setDue(e.target.value)} style={{ ...inp.style, width: 240 }} />
+          <button className="btn btn-outline btn-sm" disabled={pending || !due} onClick={() => run(() => adminSetDeadline(a.id, new Date(due).toISOString()), 'Batas bayar diubah.')}>Simpan batas bayar</button></div>
+        <p className="muted small" style={{ margin: '6px 0 0' }}>Status Kedaluwarsa otomatis kembali ke Menunggu pembayaran.</p></div>}
+
+      <div style={sec}><span className="lbl">Akun login peserta</span>
+        <p className="small" style={{ margin: '0 0 6px' }}>Email login: <b>{a.account_email || '-'}</b></p>
+        <button className="btn btn-outline btn-sm" disabled={pending} onClick={() => start(async () => {
+          if (!confirm('Kirim email link buat password baru ke peserta?')) return;
+          const r = await adminSendReset(a.id); setMsg(r.ok ? { t: 'ok', m: `Link reset password dikirim ke ${r.data.email}.` } : { t: 'err', m: r.error! }); router.refresh();
+        })}>🔑 Kirim link reset password</button>
+        <div style={{ marginTop: 10 }}><span className="small"><b>Pindahkan pendaftaran ke akun lain</b> (mis. peserta terlanjur membuat akun baru)</span>
+          <div className="row" style={{ marginTop: 6 }}><input type="email" value={moveEmail} onChange={e => setMoveEmail(e.target.value)} placeholder="email akun tujuan" style={{ ...inp.style, width: 260 }} />
+            <button className="btn btn-outline btn-sm" disabled={pending || !moveEmail.trim()} onClick={() => { if (confirm(`Pindahkan pendaftaran ini ke akun ${moveEmail}?`)) run(() => adminMoveToAccount(a.id, moveEmail), 'Pendaftaran dipindahkan ke akun tujuan.'); }}>Pindahkan</button></div></div></div>
 
       {isSuper && <div style={sec}><span className="lbl" style={{ color: 'var(--red)' }}>Hapus pendaftaran</span>
         <p className="small" style={{ margin: '0 0 6px' }}>Menghapus permanen pendaftaran, dokumen, bukti transfer, dan catatan pembayarannya. Ketik <b>{a.reg_code || 'HAPUS'}</b> untuk konfirmasi.</p>
