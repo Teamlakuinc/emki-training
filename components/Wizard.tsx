@@ -464,6 +464,17 @@ function StepDocs(p: StepProps) {
                   </ul>
                   <a href="/contoh-pas-foto.jpg" target="_blank" rel="noopener"><img src="/contoh-pas-foto.jpg" alt="Contoh pas foto benar dan salah" style={{ width: '100%', maxWidth: 420, borderRadius: 8, border: '1px solid var(--line)' }} loading="lazy" /></a>
                 </details>)}
+              {d.code === 'qr_siapkerja' && (
+                <details className="small" style={{ marginTop: 8 }} open={!cur}>
+                  <summary><b>📱 Lihat contoh capture QR Code SIAPkerja</b></summary>
+                  <ul style={{ paddingLeft: 18, margin: '8px 0' }}>
+                    <li>Buka aplikasi / situs <b>SIAPkerja</b>, lalu tampilkan <b>QR Code akun</b> Anda.</li>
+                    <li>Screenshot <b>satu kartu utuh</b>: nama, NIK, dan QR Code harus terlihat jelas (tidak terpotong / buram).</li>
+                    <li>Upload dalam format JPG atau PNG.</li>
+                  </ul>
+                  <a href="/contoh-qr-siapkerja.jpg" target="_blank" rel="noopener"><img src="/contoh-qr-siapkerja.jpg" alt="Contoh capture QR Code akun SIAPkerja" style={{ width: '100%', maxWidth: 220, borderRadius: 8, border: '1px solid var(--line)' }} loading="lazy" /></a>
+                  <div className="muted" style={{ marginTop: 4 }}>Contoh disamarkan. Milik Anda harus terlihat jelas.</div>
+                </details>)}
               {cur && <div className="fn">{cur.file_name} · <button type="button" className="small" style={{ background: 'none', border: 0, color: 'var(--blue)', cursor: 'pointer', padding: 0 }} onClick={() => view(cur.storage_path)}>lihat</button></div>}
               <label className="btn btn-outline" style={{ marginTop: 10, padding: '8px 14px', fontSize: 14 }}>
                 {busy === d.code ? 'Mengunggah…' : cur ? 'Ganti file' : 'Pilih file'}
