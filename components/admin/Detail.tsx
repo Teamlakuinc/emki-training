@@ -9,6 +9,7 @@ import StaffDocUpload from '@/components/admin/StaffDocUpload';
 import ManageApplication from '@/components/admin/ManageApplication';
 import EditParticipant from '@/components/admin/EditParticipant';
 import PayLinkCard from '@/components/admin/PayLinkCard';
+import RecordPayment from '@/components/admin/RecordPayment';
 import { decide, adminUndoApproval, moveSession, extendPayment, revealSecret, saveAdminNotes, logNotification } from '@/app/admin/actions';
 
 const DEC: Record<string, string> = { approve: '✅ Disetujui', revision: '📄 Minta perbaikan', recommend: '🔁 Rekomendasi skema', reject: '⛔ Ditolak' };
@@ -178,6 +179,12 @@ export default function Detail(p: any) {
           </div>
 
           {['awaiting_payment', 'expired'].includes(a.status) && <PayLinkCard a={a} site={p.site} />}
+
+          {['awaiting_payment', 'expired', 'payment_review'].includes(a.status) && <div className="card">
+            <h2>Catat pembayaran manual</h2>
+            <p className="muted small">Bukti transfer diterima lewat WA / email? Upload di sini, peserta langsung <b>Lunas</b> dan bukti tersimpan.</p>
+            <RecordPayment target={{ appId: a.id }} amount={Number(a.amount || 0)} label={`${a.full_name} (${a.reg_code})`} defaultName={a.full_name} compact />
+          </div>}
 
           <div className="card">
             <h2>Kirim WhatsApp</h2>

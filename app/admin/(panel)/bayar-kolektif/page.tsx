@@ -19,6 +19,7 @@ export default async function Page() {
     const its = (items || []).filter((x: any) => x.invoice_id === g.id).map((x: any) => x.applications).filter(Boolean);
     return { ...g, url: `${site}/bayar/kolektif/${g.token}`, count: its.length, paid: its.filter((x: any) => x.status === 'paid').length,
       total: its.reduce((s: number, x: any) => s + Number(x.amount || 0), 0),
+      unpaid: its.filter((x: any) => ['awaiting_payment', 'expired', 'payment_review'].includes(x.status)).reduce((s: number, x: any) => s + Number(x.amount || 0), 0),
       lunas: (pays || []).some((p: any) => p.invoice_id === g.id && p.status === 'paid') };
   });
   return (<>

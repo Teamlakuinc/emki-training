@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { adminCreateGroupInvoice, adminDeleteGroupInvoice } from '@/app/admin/actions';
 import { rupiah, tanggal, waktu } from '@/lib/format';
 import { waNumber } from '@/lib/templates';
+import RecordPayment from '@/components/admin/RecordPayment';
 
 const inp = { font: 'inherit', fontSize: 14, padding: '8px 10px', border: '1.5px solid #D5D8DC', borderRadius: 8, width: '100%' } as const;
 
@@ -86,7 +87,9 @@ export default function GroupInvoice({ apps, invoices }: { apps: any[]; invoices
             <button className="btn btn-outline btn-sm" onClick={() => { navigator.clipboard.writeText(g.url); setMsg({ t: 'ok', m: `Link ${g.code} disalin.` }); }}>📋 Salin</button>
             {g.payer_phone && <a className="btn btn-wa btn-sm" target="_blank" rel="noopener" href={`https://wa.me/${waNumber(g.payer_phone)}?text=${encodeURIComponent(waText(g.url, g.code, g.count, g.total))}`}>💬 Kirim</a>}
             {!g.lunas && <button className="btn btn-outline btn-sm" disabled={pending} onClick={() => { if (confirm(`Hapus tagihan ${g.code}?`)) start(async () => { const r = await adminDeleteGroupInvoice(g.id); setMsg(r.ok ? { t: 'ok', m: 'Tagihan dihapus.' } : { t: 'err', m: r.error! }); router.refresh(); }); }}>Hapus</button>}
-          </div></td></tr>)}
+          </div>
+          {g.paid < g.count && <div style={{ marginTop: 6 }}><RecordPayment target={{ groupId: g.id }} amount={g.unpaid} label={`tagihan ${g.code}`} defaultName={g.payer_name || ''} compact /></div>}
+          </td></tr>)}
           {!invoices.length && <tr><td colSpan={6} className="muted">Belum ada tagihan kolektif.</td></tr>}</tbody>
       </table></div>
     </div>

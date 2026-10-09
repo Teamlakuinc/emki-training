@@ -713,3 +713,76 @@ export async function markNotificationsSeen(): Promise<Res> {
   revalidatePath('/admin', 'layout');
   return error ? err(error.message) : { ok: true };
 }
+
+/* ======================= ADMIN CATAT PEMBAYARAN MANUAL (upload bukti → Lunas) ======================= */
+const PROOF_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };
+
+/** target: { appId } untuk 1 peserta, atau { groupId } untuk tagihan kolektif */
+export async function adminProofUploadUrl(target: { appId?: string; groupId?: string }, mime: string, size: number): Promise<Res> {
+  await requireStaff();
+  if (!PROOF_EXT[mime]) return err('Format bukti harus JPG, PNG, atau PDF.');
+  if (!(size > 0 && size <= 10 * 1024 * 1024)) return err('Ukuran file maksimal 10 MB.');
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const db = createAdminClient();
+  let base = '';
+  if (target.appId) {
+    const { data: a } = await db.from('applications').select('id,user_id').eq('id', target.appId).maybeSingle();
+    if (!a) return err('Pendaftaran tidak ditemukan.');
+    base = `${a.user_id}/${a.id}`;
+  } else if (target.groupId) base = `kolektif/${target.groupId}`;
+  else return err('Target tidak valid.');
+  const path = `${base}/bukti-admin-${Date.now()}.${PROOF_EXT[mime]}`;
+  const { data, error } = await db.storage.from('application-documents').createSignedUploadUrl(path);
+  if (error || !data) return err(error?.message || 'Gagal menyiapkan upload.');
+  return { ok: true, data: { path, token: data.token } };
+}
+
+export async function adminRecordPayment(target: { appId?: string; groupId?: string },
+  d: { path: string; name: string; mime: string; size: number; sender_name: string; sender_bank: string; transfer_date: string; note?: string }): Promise<Res> {
+  const { user } = await requireStaff();
+  const sender = (d.sender_name || '').trim().slice(0, 120), bank = (d.sender_bank || '').trim().slice(0, 60);
+  if (!sender || !bank || !/^\d{4}-\d{2}-\d{2}$/.test(d.transfer_date || '')) return err('Lengkapi nama pengirim, bank pengirim, dan tanggal transfer.');
+  if (!PROOF_EXT[d.mime]) return err('Format bukti tidak valid.');
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const db = createAdminClient();
+  const OPEN = ['awaiting_payment', 'expired', 'payment_review'];
+  let apps: any[] = []; let group: string | null = null;
+  if (target.appId) {
+    const { data: a } = await db.from('applications').select('id,user_id,reg_code,status,amount,session_id').eq('id', target.appId).maybeSingle();
+    if (!a) return err('Pendaftaran tidak ditemukan.');
+    if (!d.path.startsWith(`${a.user_id}/${a.id}/bukti-admin-`)) return err('Lokasi file tidak valid.');
+    if (!OPEN.includes(a.status)) return err('Pendaftaran ini tidak sedang menunggu pembayaran.');
+    apps = [a];
+  } else if (target.groupId) {
+    const { data: g } = await db.from('group_invoices').select('id,code').eq('id', target.groupId).maybeSingle();
+    if (!g) return err('Tagihan tidak ditemukan.');
+    if (!d.path.startsWith(`kolektif/${g.id}/bukti-admin-`)) return err('Lokasi file tidak valid.');
+    const { data: its } = await db.from('group_invoice_items').select('applications(id,user_id,reg_code,status,amount,session_id)').eq('invoice_id', g.id);
+    apps = (its || []).map((x: any) => x.applications).filter((a: any) => a && OPEN.includes(a.status));
+    if (!apps.length) return err('Semua peserta di tagihan ini sudah lunas / tidak menunggu pembayaran.');
+    group = g.code;
+  } else return err('Target tidak valid.');
+
+  const total = apps.reduce((s, a) => s + Number(a.amount || 0), 0);
+  const now = new Date().toISOString();
+  for (const a of apps) {
+    // bukti yang masih menunggu (kalau ada) ditandai sudah diproses
+    await db.from('payment_proofs').update({ status: 'approved', reviewed_by: user.id, reviewed_at: now, review_note: 'Dikonfirmasi bersama bukti dari admin' }).eq('application_id', a.id).eq('status', 'pending');
+    const { error: e1 } = await db.from('payment_proofs').insert({ application_id: a.id, storage_path: d.path, file_name: (d.name || 'bukti').slice(0, 200), mime_type: d.mime, size_bytes: d.size,
+      sender_name: sender, sender_bank: bank, transfer_date: d.transfer_date, amount: a.amount, status: 'approved', reviewed_by: user.id, reviewed_at: now,
+      review_note: (d.note || 'Dicatat admin').slice(0, 300), group_code: group, total_amount: group ? total : null });
+    if (e1) return err(e1.message);
+    const { count } = await db.from('payments').select('id', { count: 'exact', head: true }).eq('application_id', a.id);
+    await db.from('payments').insert({ application_id: a.id, order_id: `${a.reg_code || a.id.slice(0, 8)}-TF${(count || 0) + 1}`, amount: a.amount, status: 'paid', payment_type: 'transfer_manual', paid_at: now });
+    const { error: e2 } = await db.from('applications').update({ status: 'paid', paid_at: now }).eq('id', a.id);
+    if (e2) return err(e2.message);
+    const { data: s } = await db.from('exam_sessions').select('exam_schedules(exam_date)').eq('id', a.session_id).maybeSingle();
+    const exam = (s as any)?.exam_schedules?.exam_date;
+    if (exam) await db.from('application_secrets').update({ purge_after: new Date(new Date(exam).getTime() + 14 * 864e5).toISOString().slice(0, 10) }).eq('application_id', a.id);
+    await adminLog(db, user.id, a.id, 'catat_pembayaran_manual', { nominal: a.amount, pengirim: sender, bank, tanggal: d.transfer_date, kolektif: group });
+    await sendAppEmail(a.id, 'email_lunas');
+  }
+  revalidatePath('/admin/pembayaran'); revalidatePath('/admin/bayar-kolektif'); revalidatePath('/admin');
+  if (target.appId) revalidatePath(`/admin/pendaftar/${target.appId}`);
+  return { ok: true, data: { count: apps.length, total } };
+}
