@@ -231,3 +231,25 @@ export async function createDokuPayment(id: string): Promise<Res & { url?: strin
     return { ok: true, url };
   } catch (e: any) { return { ok: false, error: 'Gagal membuka pembayaran: ' + e.message }; }
 }
+
+/** Peserta memperbaiki akun SIAPkerja setelah diminta admin (berlaku di status apa pun). */
+export async function fixSiapkerja(id: string, d: { email: string; phone: string; password: string }): Promise<Res> {
+  const { supabase, user } = await me();
+  const { data: a } = await supabase.from('applications').select('id,user_id,siapkerja_fix_requested_at').eq('id', id).maybeSingle();
+  if (!a || a.user_id !== user.id) return { ok: false, error: 'Pendaftaran tidak ditemukan.' };
+  if (!a.siapkerja_fix_requested_at) return { ok: false, error: 'Tidak ada permintaan perbaikan SIAPkerja untuk pendaftaran ini.' };
+  const email = clean(d.email) as string | null, phone = clean(d.phone) as string | null;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: 'Email SIAPkerja tidak valid.' };
+  if (!phone || phone.replace(/\D/g, '').length < 9) return { ok: false, error: 'No. telepon SIAPkerja tidak valid.' };
+  if (!d.password) return { ok: false, error: 'Isi password SIAPkerja yang benar.' };
+  if (d.password.length > 200) return { ok: false, error: 'Password terlalu panjang.' };
+  const admin = createAdminClient();
+  const { error: e1 } = await admin.rpc('set_siapkerja_secret', { p_application: id, p_user: user.id, p_ciphertext: encryptSecret(d.password) });
+  if (e1) return { ok: false, error: niceErr(e1.message) };
+  const { error: e2 } = await admin.from('applications').update({
+    siapkerja_email: email, siapkerja_phone: phone, siapkerja_fix_requested_at: null, siapkerja_fixed_at: new Date().toISOString(),
+  }).eq('id', id).eq('user_id', user.id);
+  if (e2) return { ok: false, error: niceErr(e2.message) };
+  revalidatePath(`/akun/pendaftaran/${id}`); revalidatePath(`/admin/pendaftar/${id}`);
+  return { ok: true };
+}

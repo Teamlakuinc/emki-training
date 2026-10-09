@@ -478,3 +478,31 @@ export async function adminBackToVerification(appId: string): Promise<Res> {
   revalidatePath(`/admin/pendaftar/${appId}`); revalidatePath('/admin'); revalidatePath('/admin/verifikasi');
   return { ok: true };
 }
+
+/* ======================= AKUN SIAPKERJA SALAH ======================= */
+/** Tandai akun SIAPkerja salah → peserta bisa memperbaiki lewat link khusus; kirim email otomatis. */
+export async function adminFlagSiapkerja(appId: string, note: string): Promise<Res> {
+  const { user } = await requireStaff();
+  const n = (note || '').trim().slice(0, 300);
+  if (!n) return err('Tulis kendalanya, mis. "password salah" atau "email tidak terdaftar".');
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const db = createAdminClient();
+  const { error } = await db.from('applications').update({ siapkerja_fix_requested_at: new Date().toISOString(), siapkerja_fix_note: n, siapkerja_fixed_at: null }).eq('id', appId);
+  if (error) return err(error.message);
+  await adminLog(db, user.id, appId, 'siapkerja_salah', { kendala: n });
+  const emailed = await sendAppEmail(appId, 'email_siapkerja_salah', { catatan_siapkerja: n });
+  revalidatePath(`/admin/pendaftar/${appId}`); revalidatePath(`/akun/pendaftaran/${appId}`);
+  return { ok: true, data: { emailed } };
+}
+
+/** Selesaikan / batalkan permintaan perbaikan (mis. sudah dicek dan bisa login). */
+export async function adminClearSiapkerja(appId: string): Promise<Res> {
+  const { user } = await requireStaff();
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const db = createAdminClient();
+  const { error } = await db.from('applications').update({ siapkerja_fix_requested_at: null }).eq('id', appId);
+  if (error) return err(error.message);
+  await adminLog(db, user.id, appId, 'siapkerja_beres', {});
+  revalidatePath(`/admin/pendaftar/${appId}`); revalidatePath(`/akun/pendaftaran/${appId}`);
+  return { ok: true };
+}

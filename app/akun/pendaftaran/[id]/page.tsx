@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { cleanId, maskEmail, ownerOf } from '@/lib/applink';
 import BedaAkun from './BedaAkun';
 import Wizard from '@/components/Wizard';
+import Link from 'next/link';
 import { claimFromCookie } from '@/lib/ref';
 
 export const dynamic = 'force-dynamic';
@@ -50,10 +51,15 @@ export default async function Page({ params }: { params: { id: string } }) {
   }
   const applies = (r: any) => !r.scheme_ids || r.scheme_ids.length === 0 || r.scheme_ids.includes(app.scheme_id);
 
-  return (
+  return (<>
+    {app.siapkerja_fix_requested_at && (
+      <div className="alert alert-warn" style={{ maxWidth: 820, margin: '0 auto 16px' }}>
+        ⚠️ <b>Akun SIAPkerja Anda tidak bisa diakses.</b> Kendala: {app.siapkerja_fix_note || '-'}.{' '}
+        <Link className="btn btn-primary btn-sm" href={`/akun/pendaftaran/${app.id}/siapkerja`} style={{ marginLeft: 6 }}>Perbaiki sekarang</Link>
+      </div>)}
     <Wizard app={app} scheme={scheme} userId={user!.id} sessions={(sessR.data as any[]) || []} current={curR.data}
       docs={docsR.data || []} hasSecret={!!secretR.data} logs={logsR.data || []} recommended={recR.data} recSessions={recSessions}
       method="doku" banks={[]} proofs={proofsR.data || []} clientKey="" prod={false}
       reqDocs={(reqR.data || []).filter(applies)} fields={(fieldsR.data || []).filter(applies)} />
-  );
+  </>);
 }

@@ -3,6 +3,7 @@ import { Fragment, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { STATUS, jam, rupiah, tanggal, waktu, appliesTo } from '@/lib/format';
 import { fillTemplate, varsFor, waNumber } from '@/lib/templates';
+import SiapkerjaFlag from '@/components/admin/SiapkerjaFlag';
 import AdminDocUpload from '@/components/admin/AdminDocUpload';
 import StaffDocUpload from '@/components/admin/StaffDocUpload';
 import ManageApplication from '@/components/admin/ManageApplication';
@@ -101,6 +102,7 @@ export default function Detail(p: any) {
                 })}>🔓 Tampilkan password</button>
               </div>)}
             {secret && <p className="muted small">Password disembunyikan lagi otomatis dalam 60 detik. Akses ini tercatat.</p>}
+            <SiapkerjaFlag a={a} site={p.site} template={p.templates.find((t: any) => t.key === 'wa_siapkerja_salah')?.body} />
           </div>
         </div>
 
@@ -153,7 +155,7 @@ export default function Detail(p: any) {
 
           <div className="card">
             <h2>Kirim WhatsApp</h2>
-            <div className="pill-row">{p.templates.map((t: any) => <button key={t.key} className="btn btn-wa btn-sm" disabled={!a.phone} onClick={() => wa(t.key)}>💬 {t.title}</button>)}</div>
+            <div className="pill-row">{p.templates.filter((t: any) => t.key !== 'wa_siapkerja_salah').map((t: any) => <button key={t.key} className="btn btn-wa btn-sm" disabled={!a.phone} onClick={() => wa(t.key)}>💬 {t.title}</button>)}</div>
             {p.notifs.length > 0 && <p className="muted small" style={{ marginTop: 10 }}>Terakhir: {p.notifs.slice(0, 3).map((n: any) => `${n.template_key} (${waktu(n.created_at)})`).join(' · ')}</p>}
           </div>
 
