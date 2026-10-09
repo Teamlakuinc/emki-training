@@ -1,11 +1,13 @@
 'use client';
 import { useState, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
 function DaftarForm({ refCode }: { refCode: string | null }) {
   const params = useSearchParams();
+  const router = useRouter();
+  const [resent, setResent] = useState('');
   const next = params.get('next') || '/akun';
   const [f, setF] = useState({ name: '', email: '', wa: '', pw: '', pw2: '' });
   const [err, setErr] = useState('');
@@ -21,7 +23,7 @@ function DaftarForm({ refCode }: { refCode: string | null }) {
     setBusy(true);
     const supabase = createClient();
     const site = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: f.email.trim(), password: f.pw,
       options: { data: { full_name: f.name.trim(), phone: f.wa.replace(/[^0-9+]/g, ''), ...(refCode ? { ref: refCode } : {}) }, emailRedirectTo: `${site}/auth/callback?next=${encodeURIComponent(next)}` },
     });
@@ -31,14 +33,25 @@ function DaftarForm({ refCode }: { refCode: string | null }) {
              /password/i.test(error.message) ? 'Password terlalu lemah atau pernah bocor. Gunakan kombinasi lain.' : error.message);
       return;
     }
+    // konfirmasi email nonaktif → akun langsung aktif, lanjut ke formulir
+    if (data?.session) { router.replace(next.startsWith('/') ? next : '/akun'); router.refresh(); return; }
     setDone(true);
+  }
+  async function resend() {
+    setResent('…');
+    const site = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+    const { error } = await createClient().auth.resend({ type: 'signup', email: f.email.trim(), options: { emailRedirectTo: `${site}/auth/callback?next=${encodeURIComponent(next)}` } });
+    setResent(error ? (/rate|seconds/i.test(error.message) ? 'Tunggu sekitar 1 menit sebelum mengirim ulang.' : 'Gagal mengirim ulang. Hubungi admin via WhatsApp.') : 'Email konfirmasi dikirim ulang. Cek inbox & folder Spam.');
   }
 
   if (done) return (
     <div className="card narrow" style={{ margin: '0 auto' }}>
       <h1>Cek email Anda</h1>
       <p>Kami mengirim link konfirmasi ke <b>{f.email}</b>. Klik link tersebut untuk mengaktifkan akun, lalu lanjutkan pendaftaran.</p>
-      <p className="muted">Tidak menemukan email? Cek folder <b>Spam/Promosi</b>. Email dikirim dari hi@edukasikuliner.com.</p>
+      <p className="muted">Tidak menemukan email? Cek folder <b>Spam/Promosi/Junk</b>. Email dikirim dari hi@edukasikuliner.com.</p>
+      {resent && <div className="alert alert-info small">{resent}</div>}
+      <div className="row"><button type="button" className="btn btn-outline btn-sm" disabled={resent === '…'} onClick={resend}>Kirim ulang email</button>
+        <a className="btn btn-wa btn-sm" href={`https://wa.me/${process.env.NEXT_PUBLIC_WA_ADMIN || '6285117575842'}?text=${encodeURIComponent(`Halo admin EMKI, saya sudah membuat akun dengan email ${f.email} tapi email konfirmasi tidak masuk.`)}`} target="_blank" rel="noopener">Email tidak masuk? Hubungi admin</a></div>
     </div>
   );
 
