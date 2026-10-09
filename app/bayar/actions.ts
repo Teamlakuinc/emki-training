@@ -19,3 +19,12 @@ export async function payGroup(token: string) {
 export async function checkGroup(token: string) {
   return { ok: true, status: await refreshGroup(token) };
 }
+
+export async function proofUrl(kind: 'app' | 'group', token: string, mime: string, size: number) {
+  const { proofUploadUrl } = await import('@/lib/paylink');
+  return proofUploadUrl(kind, token, mime, size);
+}
+export async function sendProof(kind: 'app' | 'group', token: string, d: { path: string; name: string; mime: string; size: number; sender_name: string; sender_bank: string; transfer_date: string }) {
+  const { recordProof } = await import('@/lib/paylink');
+  return recordProof(kind, token, d);
+}

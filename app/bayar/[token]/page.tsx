@@ -23,12 +23,14 @@ export default async function Page({ params, searchParams }: { params: { token: 
         <dt>Total</dt><dd><b style={{ fontSize: 20 }}>{rupiah(a.amount)}</b></dd>
         {a.status === 'awaiting_payment' && a.payment_due_at && <><dt>Batas bayar</dt><dd>{waktu(a.payment_due_at)}</dd></>}
       </dl>
-      {a.status === 'paid' ? (
+      {a.status === 'payment_review' ? (
+        <div className="alert alert-info">🧾 <b>Bukti transfer sudah diterima</b> dan sedang dicek tim EMKI. Status berubah menjadi Lunas setelah dikonfirmasi.</div>
+      ) : a.status === 'paid' ? (
         <div className="alert alert-ok">✅ <b>Lunas</b>{a.paid_at ? ` pada ${waktu(a.paid_at)}` : ''}. Terima kasih! Informasi Ujikom dikirim ke peserta.</div>
       ) : a.status === 'awaiting_payment' && !lewat ? (<>
         <p className="muted small">Pembayaran melalui DOKU (transfer bank / virtual account, QRIS, e-wallet, kartu). Siapa pun boleh membayar lewat link ini.</p>
         <PayButton token={params.token} kind="app" label={`Bayar ${rupiah(a.amount)}`} autoCheck={!!searchParams.selesai} />
-        <BankInfo amount={Number(a.amount)} label={a.reg_code} waText={`Halo admin EMKI, berikut bukti transfer untuk ${a.reg_code} (${a.full_name}) sebesar ${rupiah(a.amount)}.`} />
+        <BankInfo token={params.token} kind="app" defaultName={a.full_name} amount={Number(a.amount)} label={a.reg_code} waText={`Halo admin EMKI, berikut bukti transfer untuk ${a.reg_code} (${a.full_name}) sebesar ${rupiah(a.amount)}.`} />
       </>) : (
         <div className="alert alert-warn">{lewat || a.status === 'expired' ? 'Batas pembayaran sudah lewat.' : 'Pendaftaran ini belum/tidak sedang menunggu pembayaran.'} Silakan hubungi admin EMKI.</div>
       )}

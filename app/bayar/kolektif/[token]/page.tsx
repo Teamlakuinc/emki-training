@@ -24,7 +24,7 @@ export default async function Page({ params, searchParams }: { params: { token: 
         <thead><tr><th>#</th><th>Peserta</th><th>Skema</th><th>Ujikom</th><th style={{ textAlign: 'right' }}>Biaya</th><th>Status</th></tr></thead>
         <tbody>{apps.map((a: any, i: number) => {
           const ok = list.some((x: any) => x.id === a.id);
-          const st = a.status === 'paid' ? <span className="badge green">Lunas</span> : ok ? <span className="badge amber">Belum bayar</span> : <span className="badge grey">{a.status === 'awaiting_payment' ? 'Batas lewat' : STATUS[a.status]?.label || a.status}</span>;
+          const st = a.status === 'paid' ? <span className="badge green">Lunas</span> : a.status === 'payment_review' ? <span className="badge blue">Bukti dicek</span> : ok ? <span className="badge amber">Belum bayar</span> : <span className="badge grey">{a.status === 'awaiting_payment' ? 'Batas lewat' : STATUS[a.status]?.label || a.status}</span>;
           return <tr key={a.id}><td>{i + 1}</td><td>{a.full_name}<div className="muted small">{a.reg_code}</div></td><td className="small">{a.schemes?.name}</td>
             <td className="small">{a.exam_sessions?.exam_schedules ? tanggal(a.exam_sessions.exam_schedules.exam_date) : '-'}</td>
             <td style={{ textAlign: 'right' }}>{rupiah(a.amount)}</td><td>{st}</td></tr>; })}</tbody>
@@ -33,7 +33,7 @@ export default async function Page({ params, searchParams }: { params: { token: 
         <div className="row between" style={{ margin: '16px 0 6px' }}><span>Total dibayar sekarang ({list.length} peserta)</span><b style={{ fontSize: 22 }}>{rupiah(total)}</b></div>
         {due && <p className="muted small">Bayar sebelum <b>{waktu(due)}</b>. Peserta yang batas bayarnya lewat tidak ikut ditagih.</p>}
         <PayButton token={params.token} kind="group" label={`Bayar ${rupiah(total)} sekaligus`} autoCheck={!!searchParams.selesai} />
-        <BankInfo amount={total} label={g.code} waText={`Halo admin EMKI, berikut bukti transfer tagihan kolektif ${g.code} (${list.length} peserta) sebesar ${rupiah(total)}.`} />
+        <BankInfo token={params.token} kind="group" defaultName={g.payer_name || ''} amount={total} label={g.code} waText={`Halo admin EMKI, berikut bukti transfer tagihan kolektif ${g.code} (${list.length} peserta) sebesar ${rupiah(total)}.`} />
       </>) : (
         <div className="alert alert-ok" style={{ marginTop: 16 }}>{paid === apps.length ? '✅ Semua peserta sudah lunas. Terima kasih!' : 'Tidak ada peserta yang perlu dibayar saat ini. Hubungi admin jika ada yang batas bayarnya lewat.'}</div>
       )}

@@ -134,3 +134,57 @@ export async function refreshGroup(token: string) {
   }
   return null;
 }
+
+/* ===================== BUKTI TRANSFER TANPA LOGIN ===================== */
+const MIME_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };
+
+/** Siapkan link upload sekali pakai untuk bukti transfer. */
+export async function proofUploadUrl(kind: 'app' | 'group', token: string, mime: string, size: number) {
+  if (!MIME_EXT[mime]) return { ok: false, error: 'Format bukti harus JPG, PNG, atau PDF.' };
+  if (!(size > 0 && size <= 10 * 1024 * 1024)) return { ok: false, error: 'Ukuran file maksimal 10 MB.' };
+  let base = '';
+  if (kind === 'app') {
+    const a: any = await appByToken(token);
+    if (!a || a.status !== 'awaiting_payment') return { ok: false, error: 'Pendaftaran ini tidak sedang menunggu pembayaran.' };
+    const db = createAdminClient();
+    const { data: own } = await db.from('applications').select('user_id').eq('id', a.id).single();
+    base = `${own!.user_id}/${a.id}`;
+  } else {
+    const d = await groupByToken(token);
+    if (!d || !payable(d.apps).length) return { ok: false, error: 'Tidak ada peserta yang perlu dibayar di tagihan ini.' };
+    base = `kolektif/${d.g.id}`;
+  }
+  const path = `${base}/bukti-${Date.now()}.${MIME_EXT[mime]}`;
+  const { data, error } = await createAdminClient().storage.from('application-documents').createSignedUploadUrl(path);
+  if (error || !data) return { ok: false, error: error?.message || 'Gagal menyiapkan upload.' };
+  return { ok: true, path, uploadToken: data.token };
+}
+
+/** Catat bukti transfer → status "Menunggu konfirmasi pembayaran" (dicek admin di menu Konfirmasi Pembayaran). */
+export async function recordProof(kind: 'app' | 'group', token: string, d: { path: string; name: string; mime: string; size: number; sender_name: string; sender_bank: string; transfer_date: string }) {
+  const sender = (d.sender_name || '').trim().slice(0, 120), bank = (d.sender_bank || '').trim().slice(0, 60);
+  if (!sender || !bank || !/^\d{4}-\d{2}-\d{2}$/.test(d.transfer_date || '')) return { ok: false, error: 'Lengkapi nama pengirim, bank pengirim, dan tanggal transfer.' };
+  if (!MIME_EXT[d.mime]) return { ok: false, error: 'Format bukti tidak valid.' };
+  const db = createAdminClient();
+  const row = { storage_path: d.path, file_name: (d.name || 'bukti').slice(0, 200), mime_type: d.mime, size_bytes: d.size, sender_name: sender, sender_bank: bank, transfer_date: d.transfer_date, via_link: true };
+  let targets: any[] = []; let group: string | null = null; let total: number | null = null;
+  if (kind === 'app') {
+    const a: any = await appByToken(token);
+    if (!a || a.status !== 'awaiting_payment') return { ok: false, error: 'Pendaftaran ini tidak sedang menunggu pembayaran.' };
+    const { data: own } = await db.from('applications').select('user_id').eq('id', a.id).single();
+    if (!d.path.startsWith(`${own!.user_id}/${a.id}/bukti-`)) return { ok: false, error: 'Lokasi file tidak valid.' };
+    targets = [a];
+  } else {
+    const g = await groupByToken(token);
+    if (!g) return { ok: false, error: 'Tagihan tidak ditemukan.' };
+    if (!d.path.startsWith(`kolektif/${g.g.id}/bukti-`)) return { ok: false, error: 'Lokasi file tidak valid.' };
+    targets = payable(g.apps); group = g.g.code; total = targets.reduce((s, a) => s + Number(a.amount), 0);
+    if (!targets.length) return { ok: false, error: 'Tidak ada peserta yang perlu dibayar di tagihan ini.' };
+  }
+  const { error } = await db.from('payment_proofs').insert(targets.map(a => ({ ...row, application_id: a.id, amount: a.amount, group_code: group, total_amount: total })));
+  if (error) return { ok: false, error: error.message };
+  const { error: e2 } = await db.from('applications').update({ status: 'payment_review' }).in('id', targets.map(a => a.id)).eq('status', 'awaiting_payment');
+  if (e2) return { ok: false, error: e2.message };
+  for (const a of targets) await sendAppEmail(a.id, 'email_bukti_diterima');
+  return { ok: true, count: targets.length };
+}

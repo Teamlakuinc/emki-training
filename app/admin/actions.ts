@@ -289,11 +289,20 @@ export async function rebalanceSessions(scheduleId: string, apply: boolean, noti
 /* ---------- konfirmasi pembayaran transfer (Super Admin + Verifikator) ---------- */
 export async function reviewPayment(proofId: string, approve: boolean, note: string): Promise<Res> {
   const { supabase } = await requireStaff();
-  const { data, error } = await supabase.rpc('review_payment', { p_proof: proofId, p_approve: approve, p_note: note || null });
-  if (error) return err(error.message);
-  const a: any = data;
-  if (approve) await sendAppEmail(a.id, 'email_lunas');
-  else await sendAppEmail(a.id, 'email_bukti_ditolak', { catatan: note });
+  // bukti kolektif: semua peserta dalam satu transfer diproses sekaligus
+  const { data: pf } = await supabase.from('payment_proofs').select('group_code,created_at,storage_path').eq('id', proofId).maybeSingle();
+  let ids = [proofId];
+  if (pf?.group_code) {
+    const { data: sib } = await supabase.from('payment_proofs').select('id').eq('group_code', pf.group_code).eq('storage_path', pf.storage_path).eq('status', 'pending');
+    ids = Array.from(new Set([proofId, ...(sib || []).map((x: any) => x.id)]));
+  }
+  for (const id of ids) {
+    const { data, error } = await supabase.rpc('review_payment', { p_proof: id, p_approve: approve, p_note: note || null });
+    if (error) return err(error.message);
+    const a: any = data;
+    if (approve) await sendAppEmail(a.id, 'email_lunas');
+    else await sendAppEmail(a.id, 'email_bukti_ditolak', { catatan: note });
+  }
   revalidatePath('/admin/pembayaran'); revalidatePath('/admin');
   return { ok: true };
 }

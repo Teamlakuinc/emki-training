@@ -22,6 +22,8 @@ export default function ReviewProof({ p, url }: { p: any; url: string | null }) 
         <div>
           <h2 style={{ marginBottom: 4 }}><a href={`/admin/pendaftar/${a?.id}`}>{a?.full_name}</a></h2>
           <div className="muted small">{a?.reg_code} · {a?.schemes?.name}</div>
+          {p.group_code && <div className="alert alert-info small" style={{ marginTop: 8 }}>👥 <b>Transfer kolektif {p.group_code}</b>: total {rupiah(p.total_amount)} untuk beberapa peserta. Konfirmasi/tolak di sini berlaku untuk <b>semua peserta</b> dalam transfer ini.</div>}
+          {p.via_link && !p.group_code && <div className="muted small">Dikirim lewat link bayar tanpa login.</div>}
           <dl className="kv" style={{ marginTop: 12 }}>
             <dt>Harus dibayar</dt><dd><b style={{ fontSize: 18 }}>{rupiah(p.amount)}</b></dd>
             <dt>Nama pengirim</dt><dd>{p.sender_name}</dd>
@@ -32,7 +34,7 @@ export default function ReviewProof({ p, url }: { p: any; url: string | null }) 
           <p className="small muted" style={{ marginTop: 10 }}>Cocokkan dengan mutasi rekening (nominal, nama, tanggal) sebelum mengonfirmasi.</p>
           {msg && <div className={`alert ${msg.t === 'ok' ? 'alert-ok' : 'alert-err'}`}>{msg.m}</div>}
           {!rej ? <div className="row">
-            <button className="btn btn-green" disabled={pending} onClick={() => { if (confirm(`Konfirmasi pembayaran ${rupiah(p.amount)} dari ${p.sender_name} sudah masuk?`)) act(true); }}>✅ Konfirmasi lunas</button>
+            <button className="btn btn-green" disabled={pending} onClick={() => { if (confirm(`Konfirmasi pembayaran ${rupiah(p.group_code ? p.total_amount : p.amount)} dari ${p.sender_name} sudah masuk?`)) act(true); }}>✅ Konfirmasi lunas</button>
             <button className="btn btn-danger" disabled={pending} onClick={() => setRej(true)}>❌ Tolak</button></div>
           : <div><div className="field"><label>Alasan penolakan (dikirim ke peserta)</label><textarea rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder="mis. Nominal kurang Rp 50.000 / bukti tidak terbaca / dana belum masuk" style={{ width: '100%', font: 'inherit', padding: 8, border: '1.5px solid #D5D8DC', borderRadius: 8 }} /></div>
             <div className="row"><button className="btn btn-danger" disabled={pending || !note.trim()} onClick={() => act(false)}>Kirim penolakan</button><button className="btn btn-outline btn-sm" onClick={() => setRej(false)}>Batal</button></div></div>}
