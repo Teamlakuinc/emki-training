@@ -696,3 +696,11 @@ export async function adminDeleteGroupInvoice(id: string): Promise<Res> {
   revalidatePath('/admin/bayar-kolektif');
   return error ? err(error.message) : { ok: true };
 }
+
+/* ======================= NOTIFIKASI ADMIN ======================= */
+export async function markNotificationsSeen(): Promise<Res> {
+  const { supabase, user } = await requireStaff();
+  const { error } = await supabase.from('admin_notification_seen').upsert({ user_id: user.id, last_seen_at: new Date().toISOString() });
+  revalidatePath('/admin', 'layout');
+  return error ? err(error.message) : { ok: true };
+}
