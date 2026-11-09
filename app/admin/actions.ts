@@ -38,9 +38,37 @@ export async function extendPayment(id: string, hours: number): Promise<Res> {
 export async function saveAdminNotes(id: string, notes: string, result: string): Promise<Res> {
   const { supabase } = await requireStaff('admin');
   const { error } = await supabase.from('applications')
-    .update({ admin_notes: notes || null, exam_result: result || null }).eq('id', id);
+    .update({ admin_notes: notes || null }).eq('id', id);
+  if (error) return err(error.message);
+  const { data: cur } = await supabase.from('applications').select('exam_result').eq('id', id).maybeSingle();
+  if ((cur?.exam_result || '') !== (result || '')) {
+    const r = await setExamResult([id], (result || null) as any);
+    if (!r.ok) return r;
+  }
   revalidatePath(`/admin/pendaftar/${id}`);
-  return error ? err(error.message) : { ok: true };
+  return { ok: true };
+}
+
+const certToken = () => Array.from(crypto.getRandomValues(new Uint8Array(12))).map(b => 'abcdefghjkmnpqrstuvwxyz23456789'[b % 31]).join('');
+
+/** Tandai hasil Ujikom (massal). Hanya untuk peserta yang statusnya Lunas. null = batalkan hasil. */
+export async function setExamResult(ids: string[], result: 'kompeten' | 'belum_kompeten' | null): Promise<Res> {
+  const { user } = await requireStaff('admin');
+  if (result !== null && !['kompeten', 'belum_kompeten'].includes(result)) return err('Hasil tidak valid.');
+  const { createAdminClient } = await import('@/lib/supabase/admin');
+  const db = createAdminClient();
+  const { data: apps } = await db.from('applications').select('id,status,cert_token').in('id', (ids || []).slice(0, 500));
+  const ok = (apps || []).filter(a => a.status === 'paid');
+  if (!ok.length) return err('Pilih peserta yang statusnya Lunas.');
+  for (const a of ok) {
+    const row: any = result ? { exam_result: result, exam_done_at: new Date().toISOString(), cert_token: a.cert_token || certToken() } : { exam_result: null, exam_done_at: null };
+    const { error } = await db.from('applications').update(row).eq('id', a.id);
+    if (error) return err(error.message);
+    await adminLog(db, user.id, a.id, 'hasil_ujikom', { hasil: result ? (result === 'kompeten' ? 'Kompeten' : 'Belum kompeten') : 'dibatalkan' });
+  }
+  revalidatePath('/admin/pendaftar'); revalidatePath('/admin');
+  for (const a of ok) revalidatePath(`/admin/pendaftar/${a.id}`);
+  return { ok: true, data: { done: ok.length, skipped: (ids || []).length - ok.length } };
 }
 
 /* ---------- password SIAPkerja (admin, tercatat) ---------- */

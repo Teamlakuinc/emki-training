@@ -1,11 +1,11 @@
 'use client';
 import { useState, useTransition } from 'react';
-import { STATUS, jam, rupiah, tanggal } from '@/lib/format';
+import { STATUS, jam, rupiah, tanggal, statusOf } from '@/lib/format';
 import { revealSecret } from '@/app/admin/actions';
 import StaffDocUpload from '@/components/admin/StaffDocUpload';
 
 export default function CoordDetail(p: any) {
-  const { a } = p; const st = STATUS[a.status]; const s = a.exam_sessions, j = s?.exam_schedules;
+  const { a } = p; const st = statusOf(a); const s = a.exam_sessions, j = s?.exam_schedules;
   const [pending, start] = useTransition();
   const [secret, setSecret] = useState(''); const [reason, setReason] = useState('Input ke Sisfo BNSP'); const [err, setErr] = useState('');
   return (<>

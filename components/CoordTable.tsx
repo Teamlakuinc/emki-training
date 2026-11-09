@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { STATUS, rupiah, tanggal } from '@/lib/format';
+import { STATUS, rupiah, tanggal, statusOf } from '@/lib/format';
 
 export default function CoordTable({ rows }: { rows: any[] }) {
   const [sel, setSel] = useState<Set<string>>(new Set());
@@ -15,7 +15,7 @@ export default function CoordTable({ rows }: { rows: any[] }) {
     </div>
     <div className="tbl-wrap"><table className="tbl">
       <thead><tr><th></th><th>Nama</th><th>Skema</th><th>Jadwal</th><th>Status</th><th>Sisfo</th><th>Dibayar</th><th>Komisi</th></tr></thead>
-      <tbody>{rows.map(r => { const st = STATUS[r.status]; const j = r.exam_sessions?.exam_schedules; return (
+      <tbody>{rows.map(r => { const st = statusOf(r); const j = r.exam_sessions?.exam_schedules; return (
         <tr key={r.id}><td><input type="checkbox" checked={sel.has(r.id)} onChange={() => toggle(r.id)} aria-label={`Pilih ${r.full_name}`} /></td>
           <td><Link href={`/koordinator/peserta/${r.id}`}>{r.full_name || '(belum diisi)'}</Link><div className="muted small">{r.reg_code || 'draft'} · {r.phone}</div></td>
           <td>{r.schemes?.name}</td><td className="small">{j ? `${tanggal(j.exam_date)} · ${j.tuk}` : '-'}</td>

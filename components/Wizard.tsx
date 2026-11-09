@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { ACCEPT, PENDIDIKAN, PROVINSI, STATUS, jam, rupiah, tanggal, waktu, waLink } from '@/lib/format';
+import { ACCEPT, PENDIDIKAN, PROVINSI, STATUS, jam, rupiah, tanggal, waktu, waLink, statusOf } from '@/lib/format';
 import {
   saveSession, savePersonal, saveSiapkerja, recordDocument, getDocUrl, saveConsent,
   submitApplication, acceptRecommendation, cancelApplication, createPayment, checkPayment, submitProof, applyReferral, createDokuPayment,
@@ -16,7 +16,7 @@ export default function Wizard(p: Props) {
   const router = useRouter();
   const { app, scheme } = p;
   const editable = ['draft', 'revision_required'].includes(app.status);
-  const st = STATUS[app.status];
+  const st = statusOf(app);
   const sp = useSearchParams();
   const [step, setStep] = useState(sp.get('langkah') === '2' && p.app.session_id ? 1 : 0);
   const [msg, setMsg] = useState<{ t: 'ok' | 'err'; m: string } | null>(null);
@@ -89,7 +89,7 @@ type StepProps = Props & { run: (fn: () => Promise<any>, ok: string, next?: bool
 /* ---------------- status (non-draft) ---------------- */
 function StatusPanel(p: StepProps) {
   const { app, scheme } = p;
-  const st = STATUS[app.status];
+  const st = statusOf(app);
   const lastNote = p.logs.find(l => l.note)?.note || app.verifier_note;
   const [recSession, setRecSession] = useState<string>('');
   const recHasCurrent = p.recSessions.some(s => s.session_id === app.session_id);

@@ -39,7 +39,7 @@ export default async function Page({ params, searchParams }: { params: { id: str
       <p className="small"><a href={searchParams.semua ? `/admin/jadwal/${j.id}` : `/admin/jadwal/${j.id}?semua=1`}>{searchParams.semua ? 'Tampilkan yang lunas saja' : 'Tampilkan semua yang sudah mengirim'}</a></p>
       {(sessions || []).map(s => <div key={s.id} style={{ marginBottom: 20 }}>
         <h3>{s.name} · {s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)} <span className="muted small">({counts[s.id] || 0}/{s.quota} kursi terisi)</span></h3>
-        <ApplicantTable rows={bySession(s.id)} templates={templates || []} site={process.env.NEXT_PUBLIC_SITE_URL || ''} showSchedule={false} />
+        <ApplicantTable rows={bySession(s.id)} templates={templates || []} site={process.env.NEXT_PUBLIC_SITE_URL || ''} showSchedule={false} canResult={admin} />
       </div>)}
 
       {admin && <>

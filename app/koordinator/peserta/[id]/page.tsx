@@ -15,5 +15,5 @@ export default async function Page({ params }: { params: { id: string } }) {
   const urls: Record<string, string> = {};
   for (const d of docs || []) { const { data } = await supabase.storage.from('application-documents').createSignedUrl(d.storage_path, 600); if (data) urls[d.doc_type] = data.signedUrl; }
   return <CoordDetail a={a} docs={docs || []} urls={urls} hasSecret={!!hasSecret}
-    staffDocs={(req || []).filter((d: any) => d.filled_by === 'staff')} partDocs={(req || []).filter((d: any) => d.filled_by !== 'staff')} />;
+    staffDocs={(req || []).filter((d: any) => d.filled_by === 'staff' && d.code !== 'sertifikat_bnsp')} partDocs={(req || []).filter((d: any) => d.filled_by !== 'staff')} />;
 }

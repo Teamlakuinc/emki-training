@@ -1,7 +1,7 @@
 'use client';
 import { Fragment, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { STATUS, jam, rupiah, tanggal, waktu, appliesTo } from '@/lib/format';
+import { STATUS, jam, rupiah, tanggal, waktu, appliesTo, statusOf } from '@/lib/format';
 import { fillTemplate, varsFor, waNumber } from '@/lib/templates';
 import SiapkerjaFlag from '@/components/admin/SiapkerjaFlag';
 import AdminDocUpload from '@/components/admin/AdminDocUpload';
@@ -10,6 +10,7 @@ import ManageApplication from '@/components/admin/ManageApplication';
 import EditParticipant from '@/components/admin/EditParticipant';
 import PayLinkCard from '@/components/admin/PayLinkCard';
 import RecordPayment from '@/components/admin/RecordPayment';
+import ExamResultCard from '@/components/admin/ExamResultCard';
 import { decide, adminUndoApproval, moveSession, extendPayment, revealSecret, saveAdminNotes, logNotification } from '@/app/admin/actions';
 
 const DEC: Record<string, string> = { approve: '✅ Disetujui', revision: '📄 Minta perbaikan', recommend: '🔁 Rekomendasi skema', reject: '⛔ Ditolak' };
@@ -29,7 +30,7 @@ export default function Detail(p: any) {
   const [secret, setSecret] = useState('');
   const [notes, setNotes] = useState(a.admin_notes || '');
   const [result, setResult] = useState(a.exam_result || '');
-  const st = STATUS[a.status];
+  const st = statusOf(a);
   const s = a.exam_sessions, j = s?.exam_schedules;
 
   const run = (fn: () => Promise<any>, ok: string) => start(async () => {
@@ -131,8 +132,8 @@ export default function Detail(p: any) {
 
           <div className="card">
             <h2>Diisi tim</h2>
-            {p.isSuper ? <StaffDocUpload appId={a.id} ownerId={a.user_id} docs={p.reqDocs.filter((d: any) => d.filled_by === 'staff')} current={p.docs} urls={p.urls} />
-              : p.reqDocs.filter((d: any) => d.filled_by === 'staff').map((d: any) => { const cur = p.docs.find((x: any) => x.doc_type === d.code); return (
+            {p.isSuper ? <StaffDocUpload appId={a.id} ownerId={a.user_id} docs={p.reqDocs.filter((d: any) => d.filled_by === 'staff' && d.code !== 'sertifikat_bnsp')} current={p.docs} urls={p.urls} />
+              : p.reqDocs.filter((d: any) => d.filled_by === 'staff' && d.code !== 'sertifikat_bnsp').map((d: any) => { const cur = p.docs.find((x: any) => x.doc_type === d.code); return (
                 <div className="doc-link" key={d.code}><span><b>{d.name}</b> {cur ? <span className="badge green">✓ Ada</span> : <span className="badge amber">Belum</span>}</span>
                   {p.urls[d.code] && <a className="btn btn-outline btn-sm" href={p.urls[d.code]} target="_blank" rel="noopener">Buka</a>}</div>); })}
           </div>
@@ -186,9 +187,12 @@ export default function Detail(p: any) {
             <RecordPayment target={{ appId: a.id }} amount={Number(a.amount || 0)} label={`${a.full_name} (${a.reg_code})`} defaultName={a.full_name} compact />
           </div>}
 
+          {a.status === 'paid' && <ExamResultCard a={a} site={p.site} isAdmin={p.isAdmin} templates={p.templates}
+            certDoc={p.reqDocs.find((d: any) => d.code === 'sertifikat_bnsp')} current={p.docs} urls={p.urls} />}
+
           <div className="card">
             <h2>Kirim WhatsApp</h2>
-            <div className="pill-row">{p.templates.filter((t: any) => t.key !== 'wa_siapkerja_salah').map((t: any) => <button key={t.key} className="btn btn-wa btn-sm" disabled={!a.phone} onClick={() => wa(t.key)}>💬 {t.title}</button>)}</div>
+            <div className="pill-row">{p.templates.filter((t: any) => t.key !== 'wa_siapkerja_salah' && t.key !== 'wa_sertifikat_bnsp').map((t: any) => <button key={t.key} className="btn btn-wa btn-sm" disabled={!a.phone} onClick={() => wa(t.key)}>💬 {t.title}</button>)}</div>
             {p.notifs.length > 0 && <p className="muted small" style={{ marginTop: 10 }}>Terakhir: {p.notifs.slice(0, 3).map((n: any) => `${n.template_key} (${waktu(n.created_at)})`).join(' · ')}</p>}
           </div>
 

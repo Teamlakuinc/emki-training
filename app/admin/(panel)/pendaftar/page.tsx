@@ -1,15 +1,19 @@
 import { requireStaff } from '@/lib/admin';
 import { STATUS } from '@/lib/format';
 import ApplicantTable from '@/components/admin/ApplicantTable';
+import { isAdminRole } from '@/lib/admin';
 import { APP_SELECT } from '@/lib/queries';
 
 
 
 export default async function Page({ searchParams }: { searchParams: { status?: string; q?: string; skema?: string; dihapus?: string; koordinator?: string } }) {
-  const { supabase } = await requireStaff();
+  const { supabase, role } = await requireStaff();
   const site = process.env.NEXT_PUBLIC_SITE_URL || '';
   let q = supabase.from('applications').select(APP_SELECT).order('submitted_at', { ascending: false, nullsFirst: false }).limit(500);
-  if (searchParams.status) q = q.eq('status', searchParams.status);
+  if (searchParams.status === 'belum_ujikom') q = q.eq('status', 'paid').is('exam_result', null);
+  else if (searchParams.status === 'kompeten' || searchParams.status === 'belum_kompeten') q = q.eq('status', 'paid').eq('exam_result', searchParams.status);
+  else if (searchParams.status === 'kompeten_tanpa_sertifikat') q = q.eq('status', 'paid').eq('exam_result', 'kompeten');
+  else if (searchParams.status) q = q.eq('status', searchParams.status);
   else q = q.neq('status', 'draft');
   if (searchParams.skema) q = q.eq('scheme_id', searchParams.skema);
   if (searchParams.koordinator === 'tanpa') q = q.is('coordinator_id', null);
@@ -27,14 +31,15 @@ export default async function Page({ searchParams }: { searchParams: { status?: 
       <form className="toolbar">
         <div className="field"><label htmlFor="q">Cari</label><input id="q" name="q" defaultValue={searchParams.q} placeholder="Nama / NIK / No. reg" /></div>
         <div className="field"><label htmlFor="st">Status</label><select id="st" name="status" defaultValue={searchParams.status || ''}>
-          <option value="">Semua (kecuali draft)</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
+          <option value="">Semua (kecuali draft)</option>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          <optgroup label="Setelah Ujikom"><option value="belum_ujikom">Lunas · belum ada hasil Ujikom</option><option value="kompeten">Selesai · Kompeten</option><option value="kompeten_tanpa_sertifikat">Kompeten · sertifikat belum diupload</option><option value="belum_kompeten">Selesai · Belum Kompeten</option></optgroup></select></div>
         <div className="field"><label htmlFor="sk">Skema</label><select id="sk" name="skema" defaultValue={searchParams.skema || ''}>
           <option value="">Semua skema</option>{(schemes || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
         <div className="field"><label htmlFor="kd">Koordinator</label><select id="kd" name="koordinator" defaultValue={searchParams.koordinator || ''}>
           <option value="">Semua</option><option value="tanpa">Tanpa koordinator</option>{(coords || []).map(c => <option key={c.id} value={c.id}>{c.code}</option>)}</select></div>
         <button className="btn btn-primary btn-sm">Tampilkan</button>
       </form>
-      <ApplicantTable rows={rows || []} templates={templates || []} site={site} />
+      <ApplicantTable rows={searchParams.status === 'kompeten_tanpa_sertifikat' ? (rows || []).filter((r: any) => !(r.application_documents || []).some((d: any) => d.doc_type === 'sertifikat_bnsp' && d.is_current)) : (rows || [])} templates={templates || []} site={site} canResult={isAdminRole(role)} />
     </>
   );
 }

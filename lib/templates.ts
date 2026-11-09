@@ -21,5 +21,6 @@ export function varsFor(a: any, site: string) {
     link_siapkerja: `${site}/akun/pendaftaran/${a.id}/siapkerja`, catatan_siapkerja: a.siapkerja_fix_note || 'data login tidak cocok / akun tidak bisa diakses',
     batas_bayar: a.payment_due_at ? waktu(a.payment_due_at) : '', catatan: a.verifier_note || '',
     skema_rekomendasi: a.rec?.name || '', nominal: rupiah(a.amount),
+    link_sertifikat: a.cert_token ? `${site}/sertifikat-bnsp/${a.cert_token}` : '',
   };
 }

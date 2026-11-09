@@ -1,11 +1,11 @@
 import { requireCoordinator } from '@/lib/admin';
-import { rupiah } from '@/lib/format';
+import { rupiah, statusOf } from '@/lib/format';
 import CoordTable from '@/components/CoordTable';
 
 export default async function Page() {
   const { supabase, coord } = await requireCoordinator();
   const { data: rows } = await supabase.from('applications')
-    .select('id,reg_code,full_name,phone,status,amount,commission_amount,markup_paid_at,schemes!applications_scheme_id_fkey(name),exam_sessions(exam_schedules(exam_date,tuk)),application_documents(doc_type,is_current)')
+    .select('id,reg_code,full_name,phone,status,exam_result,amount,commission_amount,markup_paid_at,schemes!applications_scheme_id_fkey(name),exam_sessions(exam_schedules(exam_date,tuk)),application_documents(doc_type,is_current)')
     .eq('coordinator_id', coord.id).order('created_at', { ascending: false });
   const all = rows || [];
   const paid = all.filter((a: any) => a.status === 'paid');

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import { rupiah, STATUS, waktu } from '@/lib/format';
+import { rupiah, STATUS, waktu, statusOf } from '@/lib/format';
 import { claimFromCookie } from '@/lib/ref';
 
 export const dynamic = 'force-dynamic';
@@ -11,7 +11,7 @@ export default async function Page({ searchParams }: { searchParams: { error?: s
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const { data: apps } = await supabase.from('applications')
-    .select('id,reg_code,status,amount,payment_due_at,created_at,schemes!applications_scheme_id_fkey(name,price)')
+    .select('id,reg_code,status,amount,payment_due_at,created_at,exam_result,cert_token,schemes!applications_scheme_id_fkey(name,price)')
     .eq('user_id', user!.id).order('created_at', { ascending: false });
   return (
     <>
@@ -22,7 +22,7 @@ export default async function Page({ searchParams }: { searchParams: { error?: s
       {(!apps || apps.length === 0) ? (
         <div className="card center"><p>Belum ada pendaftaran.</p><Link className="btn btn-primary" href="/">Pilih skema sertifikasi</Link></div>
       ) : apps.map((a: any) => {
-        const st = STATUS[a.status];
+        const st = statusOf(a);
         return (
           <div className="card app-item" key={a.id}>
             <div>
@@ -30,7 +30,10 @@ export default async function Page({ searchParams }: { searchParams: { error?: s
               <div className="row small"><span className={`badge ${st.tone}`}>{st.label}</span>{a.reg_code && <span className="muted">{a.reg_code}</span>}{a.amount != null && <span className="muted">{rupiah(a.amount)}</span>}</div>
               {a.status === 'awaiting_payment' && a.payment_due_at && <p className="small" style={{ margin: '6px 0 0' }}>Batas bayar: <b>{waktu(a.payment_due_at)}</b></p>}
             </div>
-            <Link className="btn btn-outline" href={`/akun/pendaftaran/${a.id}`}>{['draft', 'revision_required'].includes(a.status) ? 'Lanjutkan' : 'Lihat detail'}</Link>
+            <div className="row" style={{ gap: 8 }}>
+              {a.exam_result === 'kompeten' && a.cert_token && <Link className="btn btn-primary" href={`/sertifikat-bnsp/${a.cert_token}`}>🎓 Sertifikat BNSP</Link>}
+              <Link className="btn btn-outline" href={`/akun/pendaftaran/${a.id}`}>{['draft', 'revision_required'].includes(a.status) ? 'Lanjutkan' : 'Lihat detail'}</Link>
+            </div>
           </div>
         );
       })}

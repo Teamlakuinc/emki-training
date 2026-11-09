@@ -24,6 +24,13 @@ export const STATUS: Record<string, { label: string; tone: string; desc: string 
   cancelled:         { label: 'Dibatalkan', tone: 'grey', desc: 'Pendaftaran ini dibatalkan.' },
 };
 
+/** Status yang ditampilkan: peserta Lunas yang sudah Ujikom tampil dengan hasilnya. */
+export function statusOf(a: { status: string; exam_result?: string | null }) {
+  if (a.status === 'paid' && a.exam_result === 'kompeten') return { label: 'Selesai · Kompeten', tone: 'green', desc: 'Uji kompetensi selesai dengan hasil KOMPETEN. Sertifikat BNSP akan dikirim setelah terbit.' };
+  if (a.status === 'paid' && a.exam_result === 'belum_kompeten') return { label: 'Selesai · Belum Kompeten', tone: 'amber', desc: 'Uji kompetensi selesai dengan hasil BELUM KOMPETEN. Hubungi admin EMKI untuk informasi uji ulang.' };
+  return STATUS[a.status] || { label: a.status, tone: 'grey', desc: '' };
+}
+
 export const PROVINSI = ['Aceh','Sumatera Utara','Sumatera Barat','Riau','Kepulauan Riau','Jambi','Sumatera Selatan','Kepulauan Bangka Belitung','Bengkulu','Lampung','DKI Jakarta','Jawa Barat','Banten','Jawa Tengah','DI Yogyakarta','Jawa Timur','Bali','Nusa Tenggara Barat','Nusa Tenggara Timur','Kalimantan Barat','Kalimantan Tengah','Kalimantan Selatan','Kalimantan Timur','Kalimantan Utara','Sulawesi Utara','Gorontalo','Sulawesi Tengah','Sulawesi Barat','Sulawesi Selatan','Sulawesi Tenggara','Maluku','Maluku Utara','Papua','Papua Barat','Papua Barat Daya','Papua Tengah','Papua Pegunungan','Papua Selatan'];
 
 export const PENDIDIKAN = ['SD','SMP','SMA / SMK / Sederajat','D1','D2','D3','D4 / S1','S2','S3'];
