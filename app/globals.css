@@ -206,7 +206,7 @@ body:has(.adm-shell) main .wrap{max-width:1280px}
 .st-tab.on{background:var(--blue);border-color:var(--blue);color:#fff}.st-tab.on .n{background:rgba(255,255,255,.22);color:#fff}
 .st-tab.zero{color:var(--muted)}
 .st-sep{flex:none;width:1px;background:var(--line);margin:4px 2px}
-.st-search{position:relative;flex:1 1 280px}
+.st-search{position:relative;flex:1 1 220px;max-width:320px}
 .st-search input{width:100%;padding:9px 34px 9px 12px;font:inherit;font-size:14px;border:1px solid #CFD1D4;border-radius:10px}
 .st-search input:focus{border-color:var(--blue);outline:0}
-.st-search button{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;font-size:16px;color:var(--muted);cursor:pointer;padding:4px 6px}
+.st-search button{position:absolute;right:6px;bottom:6px;border:0;background:none;font-size:16px;color:var(--muted);cursor:pointer;padding:4px 6px}

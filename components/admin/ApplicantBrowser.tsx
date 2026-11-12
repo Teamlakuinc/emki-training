@@ -4,7 +4,7 @@ import ApplicantTable, { SortSelect } from '@/components/admin/ApplicantTable';
 
 const hasDoc = (r: any, t: string) => (r.application_documents || []).some((d: any) => d.doc_type === t && d.is_current);
 
-/** Tab status. Grup kedua = rincian peserta Lunas setelah Ujikom (boleh tumpang tindih dengan tab "Lunas"). */
+/** Pilihan status. Grup kedua = rincian peserta Lunas setelah Ujikom (boleh tumpang tindih dengan tab "Lunas"). */
 const TABS: { key: string; label: string; test: (r: any) => boolean; group?: number }[] = [
   { key: 'semua', label: 'Semua', test: r => r.status !== 'draft' },
   { key: 'submitted', label: 'Menunggu verifikasi', test: r => r.status === 'submitted' },
@@ -66,23 +66,16 @@ export default function ApplicantBrowser({ rows, templates, site, canResult, sch
   return (
     <>
       <h1>{tab === 'submitted' ? 'Antrean verifikasi' : 'Pendaftar'}</h1>
-      <div className="st-tabs" role="tablist" aria-label="Status pendaftar">
-        {TABS.map((t, i) => (
-          <span key={t.key} style={{ display: 'contents' }}>
-            {i > 0 && TABS[i - 1].group !== t.group && <span className="st-sep" aria-hidden />}
-            <button type="button" role="tab" aria-selected={tab === t.key} className={`st-tab${tab === t.key ? ' on' : ''}${!counts[t.key] ? ' zero' : ''}`} onClick={() => setTab(t.key)}>
-              {t.label}<span className="n">{counts[t.key]}</span>
-            </button>
-          </span>
-        ))}
-      </div>
-
       <div className="toolbar">
-        <div className="st-search">
-          <input type="search" value={q} onChange={e => setQ(e.target.value)} aria-label="Cari pendaftar"
-            placeholder="Cari nama, NIK, no. reg, no. WA, email, skema, koordinator, TUK…" />
+        <div className="field st-search"><label htmlFor="q">Cari</label>
+          <input id="q" type="search" value={q} onChange={e => setQ(e.target.value)} aria-label="Cari pendaftar"
+            placeholder="Nama / NIK / No. reg / No. WA / email" />
           {q && <button type="button" aria-label="Hapus pencarian" onClick={() => setQ('')}>✕</button>}
         </div>
+        <div className="field"><label htmlFor="st">Status</label><select id="st" value={tab} onChange={e => setTab(e.target.value)}>
+          {TABS.filter(t => !t.group || t.group === 3).filter(t => t.key !== 'draft').map(t => <option key={t.key} value={t.key}>{t.key === 'semua' ? 'Semua (kecuali draft)' : t.label} ({counts[t.key]})</option>)}
+          <optgroup label="Setelah Ujikom">{TABS.filter(t => t.group === 2).map(t => <option key={t.key} value={t.key}>{t.key === 'belum_ujikom' ? 'Lunas · belum ada hasil Ujikom' : t.key === 'kompeten' ? 'Selesai · Kompeten' : t.key === 'belum_kompeten' ? 'Selesai · Belum Kompeten' : 'Kompeten · sertifikat belum diupload'} ({counts[t.key]})</option>)}</optgroup>
+          <option value="draft">Draft ({counts.draft})</option></select></div>
         <div className="field"><label htmlFor="sk">Skema</label><select id="sk" value={skema} onChange={e => setSkema(e.target.value)}>
           <option value="">Semua skema</option>{schemes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
         <div className="field"><label htmlFor="kd">Koordinator</label><select id="kd" value={koor} onChange={e => setKoor(e.target.value)}>
@@ -91,7 +84,7 @@ export default function ApplicantBrowser({ rows, templates, site, canResult, sch
         {filtered && <button type="button" className="btn btn-outline btn-sm" onClick={() => { setQ(''); setSkema(''); setKoor(''); }}>Reset filter</button>}
       </div>
       <p className="muted small" style={{ margin: '-4px 0 10px' }}>
-        Menampilkan <b>{shown.length}</b> pendaftar di tab “{cur.label}”{filtered ? ' sesuai filter' : ''}. Klik judul kolom untuk mengurutkan.
+        Menampilkan <b>{shown.length}</b> pendaftar{tab !== 'semua' ? ` berstatus “${cur.label}”` : ''}{filtered ? ' sesuai filter' : ''}. Klik judul kolom untuk mengurutkan.
       </p>
 
       <ApplicantTable rows={shown} templates={templates} site={site} canResult={canResult} sort={sort} onSort={setSort} />
