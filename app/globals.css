@@ -195,3 +195,18 @@ body:has(.adm-shell) main .wrap{max-width:1280px}
 @keyframes sheetUp{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
 /* portal koordinator: menu tidak bertumpuk di HP */
 @media (max-width:600px){.adm-nav{flex-wrap:nowrap;overflow-x:auto}.adm-nav a{white-space:nowrap}}
+/* Daftar pendaftar: tab status, sort kolom */
+.th-sort{all:unset;cursor:pointer;display:inline-flex;gap:5px;align-items:center;font-weight:700}
+.th-sort span{font-size:10px;color:var(--muted)}.th-sort span.on{color:var(--blue)}
+.th-sort:hover{color:var(--blue)}.th-sort:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:4px}
+.st-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;scrollbar-width:thin}
+.st-tab{flex:none;display:inline-flex;align-items:center;gap:7px;border:1px solid #CFD1D4;background:#fff;color:var(--ink);border-radius:20px;padding:7px 13px;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.st-tab:hover{border-color:var(--blue);color:var(--blue)}
+.st-tab .n{font-size:12px;font-weight:700;background:var(--panel);color:var(--slate);border-radius:20px;padding:1px 8px;min-width:22px;text-align:center}
+.st-tab.on{background:var(--blue);border-color:var(--blue);color:#fff}.st-tab.on .n{background:rgba(255,255,255,.22);color:#fff}
+.st-tab.zero{color:var(--muted)}
+.st-sep{flex:none;width:1px;background:var(--line);margin:4px 2px}
+.st-search{position:relative;flex:1 1 280px}
+.st-search input{width:100%;padding:9px 34px 9px 12px;font:inherit;font-size:14px;border:1px solid #CFD1D4;border-radius:10px}
+.st-search input:focus{border-color:var(--blue);outline:0}
+.st-search button{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;font-size:16px;color:var(--muted);cursor:pointer;padding:4px 6px}
