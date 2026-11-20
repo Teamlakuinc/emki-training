@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { trackOnce, recent } from '@/lib/track';
 import { ACCEPT, PENDIDIKAN, PROVINSI, STATUS, jam, rupiah, tanggal, waktu, waLink, statusOf } from '@/lib/format';
 import {
   saveSession, savePersonal, saveSiapkerja, recordDocument, getDocUrl, saveConsent,
@@ -30,6 +31,16 @@ export default function Wizard(p: Props) {
     p.reqDocs.filter(d => d.is_required).every(d => p.docs.some(x => x.doc_type === d.code)),
     !!app.consent_at,
   ], [app, p.docs, p.hasSecret, p.reqDocs, p.fields]);
+
+  // Konversi untuk iklan: pendaftaran terkirim (generate_lead) dan lunas (purchase). Sekali per pendaftaran.
+  useEffect(() => {
+    const base = { scheme: scheme?.name, currency: 'IDR', value: Number(app.amount) || Number(scheme?.price) || 0 };
+    if (app.status !== 'draft' && app.status !== 'cancelled' && recent(app.submitted_at))
+      trackOnce(`lead_${app.id}`, 'generate_lead', base);
+    if (app.status === 'paid' && recent(app.paid_at))
+      trackOnce(`paid_${app.id}`, 'purchase', { ...base, transaction_id: app.reg_code || app.id,
+        ecommerce: { transaction_id: app.reg_code || app.id, value: base.value, currency: 'IDR', items: [{ item_name: scheme?.name, price: base.value, quantity: 1 }] } });
+  }, [app.id, app.status, app.submitted_at, app.paid_at, app.amount, app.reg_code, scheme?.name, scheme?.price]);
 
   const run = async (fn: () => Promise<{ ok: boolean; error?: string }>, okMsg: string, next?: boolean) => {
     if (pending) return;

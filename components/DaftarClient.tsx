@@ -3,6 +3,7 @@ import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { track } from '@/lib/track';
 
 function DaftarForm({ refCode }: { refCode: string | null }) {
   const params = useSearchParams();
@@ -33,6 +34,7 @@ function DaftarForm({ refCode }: { refCode: string | null }) {
              /password/i.test(error.message) ? 'Password terlalu lemah atau pernah bocor. Gunakan kombinasi lain.' : error.message);
       return;
     }
+    track('sign_up', { method: 'email', referral: refCode ? 'ya' : 'tidak' });
     // konfirmasi email nonaktif → akun langsung aktif, lanjut ke formulir
     if (data?.session) { router.replace(next.startsWith('/') ? next : '/akun'); router.refresh(); return; }
     setDone(true);
